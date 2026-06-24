@@ -13,7 +13,7 @@
 }
 
 * { box-sizing: border-box; }
-html { background: #FAF9F7; }
+html { background: #FAF9F7; scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; background: #FAF9F7; color: #172422; font-family: "DM Sans", sans-serif; }
 button, input, select, textarea { font: inherit; }
 ::selection { background: #cbe5dc; color: #16342F; }
@@ -22,3 +22,41 @@ button, input, select, textarea { font: inherit; }
 .ambient { background: radial-gradient(circle at 22% 18%, rgba(232,223,201,.82), transparent 26%), radial-gradient(circle at 84% 74%, rgba(206,232,219,.65), transparent 27%), #FAF9F7; }
 .score-ring { background: conic-gradient(#0E766E var(--score), #e2eee9 0); }
 .score-ring::after { content: ""; display: block; width: 76%; height: 76%; margin: 12%; border-radius: 9999px; background: white; }
+.landing-grid { background-image: linear-gradient(rgba(14, 118, 110, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(14, 118, 110, .035) 1px, transparent 1px); background-size: 36px 36px; }
+.testimonial-portrait { background-repeat: no-repeat; background-size: 380px auto; background-position-y: -30px; }
+
+/* Selective Apple-glass material for the public marketing and auth surfaces. */
+.glass-surface,
+.glass-header,
+.glass-panel,
+.glass-band {
+  border: 1px solid rgba(255, 255, 255, .72);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .76), rgba(247, 251, 248, .46));
+  box-shadow: 0 18px 45px rgba(22, 52, 47, .08), inset 0 1px 0 rgba(255, 255, 255, .82);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+.glass-surface { position: relative; }
+.glass-surface::before,
+.glass-panel::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  border-radius: inherit;
+  background: radial-gradient(circle at 10% 0%, rgba(255, 255, 255, .9), transparent 36%);
+}
+.glass-header { margin-top: .75rem; border-radius: 1.5rem; }
+.glass-panel { position: relative; overflow: hidden; background: linear-gradient(145deg, rgba(255, 255, 255, .58), rgba(238, 244, 240, .36)); }
+.glass-panel > * { position: relative; z-index: 1; }
+.glass-band { background: rgba(255, 255, 255, .32); }
+.glass-chip { border: 1px solid rgba(255, 255, 255, .78); background: rgba(238, 244, 240, .62); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8); }
+.landing-page [id] { scroll-margin-top: 6.5rem; }
+@media (hover: hover) {
+  .glass-surface { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+  .glass-surface:hover { transform: translateY(-3px); border-color: rgba(14, 118, 110, .26); box-shadow: 0 24px 54px rgba(22, 52, 47, .12), inset 0 1px 0 rgba(255, 255, 255, .9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .glass-surface { transition: none; }
+}
