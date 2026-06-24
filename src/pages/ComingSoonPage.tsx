@@ -1,0 +1,5 @@
+import { ArrowLeft, Sparkles } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+export function ComingSoonPage() { const location = useLocation(); const name = location.pathname.split('/').pop()?.replace('-', ' ') ?? 'This'; return <div className="grid min-h-[70vh] place-items-center p-6"><Card className="max-w-md p-8 text-center"><span className="mx-auto grid size-14 place-items-center rounded-3xl bg-sage text-nuraa"><Sparkles size={25} /></span><p className="mt-6 text-xs font-bold uppercase tracking-[.14em] text-nuraa">Phase 1 foundation</p><h1 className="display mt-3 text-4xl capitalize text-forest">{name} is coming soon.</h1><p className="mt-4 text-sm leading-6 text-ink/65">This part of Nuraa is intentionally held for a later phase. Your dashboard and profile foundation are ready now.</p><Button asChild className="mt-7"><Link to="/app/dashboard"><ArrowLeft size={16} /> Back to home</Link></Button></Card></div> }

@@ -1,0 +1,2 @@
+import { cn } from '@/lib/utils'
+export function ScoreRing({ score, className }: { score: number; className?: string }) { return <div className={cn('score-ring relative grid aspect-square place-items-center rounded-full', className)} style={{ '--score': `${score * 3.6}deg` } as React.CSSProperties}><div className="absolute z-10 text-center"><p className="text-4xl font-semibold leading-none text-forest">{score || '—'}</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-forest/60">Readiness</p></div></div> }

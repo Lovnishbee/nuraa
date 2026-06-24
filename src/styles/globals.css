@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #FAF9F7;
+  --color-nuraa: #0E766E;
+  --color-forest: #16342F;
+  --color-sand: #E8DFC9;
+  --color-sage: #EEF4F0;
+  --color-ink: #172422;
+  --font-sans: "DM Sans", sans-serif;
+  --font-display: "DM Serif Display", serif;
+}
+
+* { box-sizing: border-box; }
+html { background: #FAF9F7; }
+body { margin: 0; min-width: 320px; background: #FAF9F7; color: #172422; font-family: "DM Sans", sans-serif; }
+button, input, select, textarea { font: inherit; }
+::selection { background: #cbe5dc; color: #16342F; }
+
+.display { font-family: "DM Serif Display", serif; letter-spacing: -0.035em; }
+.ambient { background: radial-gradient(circle at 22% 18%, rgba(232,223,201,.82), transparent 26%), radial-gradient(circle at 84% 74%, rgba(206,232,219,.65), transparent 27%), #FAF9F7; }
+.score-ring { background: conic-gradient(#0E766E var(--score), #e2eee9 0); }
+.score-ring::after { content: ""; display: block; width: 76%; height: 76%; margin: 12%; border-radius: 9999px; background: white; }
