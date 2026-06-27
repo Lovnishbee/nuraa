@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -9,29 +10,39 @@ import { Brand } from '@/components/Brand'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { getPostAuthDestination, getStoredOnboardingResumePath } from '@/features/onboarding/progress'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { loginWithEmail, registerWithEmail } from '@/services/auth'
+import { getProfileBundle } from '@/services/profile'
+import { useAuthStore } from '@/stores/auth-store'
 
-const authSchema = z.object({
-  fullName: z.string().trim().min(2, 'Enter your full name').optional(),
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(8, 'Use at least 8 characters'),
-  confirmPassword: z.string().optional(),
-}).superRefine((data, context) => {
-  if (data.confirmPassword !== undefined && data.password !== data.confirmPassword) {
-    context.addIssue({ code: 'custom', message: 'Passwords do not match', path: ['confirmPassword'] })
-  }
-})
+function createAuthSchema(isRegister: boolean) {
+  return z.object({
+    fullName: z.string().trim().optional(),
+    email: z.string().email('Enter a valid email'),
+    password: z.string().min(8, 'Use at least 8 characters'),
+    confirmPassword: z.string().optional(),
+  }).superRefine((data, context) => {
+    if (isRegister && (!data.fullName || data.fullName.length < 2)) {
+      context.addIssue({ code: 'custom', message: 'Enter your full name', path: ['fullName'] })
+    }
+    if (isRegister && data.password !== data.confirmPassword) {
+      context.addIssue({ code: 'custom', message: 'Passwords do not match', path: ['confirmPassword'] })
+    }
+  })
+}
 
-type AuthValues = z.infer<typeof authSchema>
+type AuthValues = z.infer<ReturnType<typeof createAuthSchema>>
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const register = mode === 'register'
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const setUser = useAuthStore((state) => state.setUser)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { register: field, handleSubmit, formState: { errors, isSubmitting } } = useForm<AuthValues>({
-    resolver: zodResolver(authSchema),
+    resolver: zodResolver(createAuthSchema(register)),
     defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' },
   })
 
@@ -49,7 +60,27 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       navigate('/login', { state: { message: 'Check your email to confirm your account, then sign in.' } })
       return
     }
-    navigate(register ? '/onboarding/basic-details' : '/app/dashboard')
+
+    const user = result.data.session?.user ?? result.data.user
+    if (!user) {
+      setError('We could not start your secure session. Please try signing in again.')
+      return
+    }
+
+    setUser(user)
+
+    if (register) {
+      navigate('/onboarding/basic-details', { replace: true })
+      return
+    }
+
+    try {
+      const profileBundle = await getProfileBundle(user.id)
+      queryClient.setQueryData(['profile', user.id], profileBundle)
+      navigate(getPostAuthDestination(profileBundle, getStoredOnboardingResumePath(user.id)), { replace: true })
+    } catch {
+      navigate('/app/dashboard', { replace: true })
+    }
   }
 
   return <div className="mx-auto grid min-h-screen max-w-360 items-center gap-10 px-5 py-6 md:grid-cols-[.9fr_1.1fr] md:px-10">

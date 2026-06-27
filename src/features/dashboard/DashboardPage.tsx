@@ -1,12 +1,91 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Droplets, HeartPulse, Moon, Salad, Sparkles, Utensils, Waves } from 'lucide-react'
+import { Activity, HeartPulse, Moon, Salad, Waves } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { EmptyPlaceholder } from '@/components/EmptyPlaceholder'
-import { ScoreRing } from '@/components/ScoreRing'
+import { DesktopHeader } from '@/components/app/DesktopHeader'
+import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { getLatestScore } from '@/services/dashboard'
+import { dashboardPlaceholderMetrics } from '@/constants/dashboard-placeholders'
+import { getDashboardSummary } from '@/services/dashboard'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
+import { getTimeOfDayGreeting } from '@/utils/greeting'
+import { DailyBriefCard } from './components/DailyBriefCard'
+import { DashboardGrid, DashboardLayout } from './components/DashboardLayout'
+import { HydrationCard } from './components/HydrationCard'
+import { InsightCard } from './components/InsightCard'
+import { MealCard } from './components/MealCard'
+import { MetricTile } from './components/MetricTile'
+import { NuraaScoreCard } from './components/NuraaScoreCard'
+import { ProgressCard } from './components/ProgressCard'
+import { SectionHeader } from './components/SectionHeader'
+import { SleepCard } from './components/SleepCard'
+import { TodaysPrioritiesCard } from './components/TodaysPrioritiesCard'
+import type { WidgetStatus } from './components/types'
+import { WeeklyReportCard } from './components/WeeklyReportCard'
+import { WorkoutCard } from './components/WorkoutCard'
 
-export function DashboardPage() { const user = useAuthStore((state) => state.user)!; const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) }); const score = useQuery({ queryKey: ['score', user.id], queryFn: () => getLatestScore(user.id) }); const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'; const total = score.data?.total_score ?? 0; return <div className="mx-auto max-w-360 p-5 sm:p-7 lg:p-10"><header className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Your daily view</p><h1 className="display mt-2 text-4xl text-forest sm:text-5xl">Good morning, {name}.</h1><p className="mt-2 text-sm text-ink/60">Here’s your health foundation for today.</p></div><div className="grid size-11 place-items-center rounded-2xl bg-white text-nuraa shadow-sm"><HeartPulse size={20} /></div></header><div className="mt-8 grid gap-5 xl:grid-cols-[.88fr_1.12fr]"><Card className="overflow-hidden"><div className="p-6"><p className="text-xs font-bold tracking-wide text-forest">NURAA SCORE</p><div className="mt-6 flex items-center gap-6"><div className="relative"><ScoreRing score={total} className="w-34" /></div><div><p className="text-2xl font-semibold text-forest">{score.data?.readiness_category ?? 'Setting up'}</p><p className="mt-2 text-sm leading-6 text-ink/60">{score.data?.score_reason ?? 'Complete a daily check-in to establish your readiness baseline.'}</p></div></div></div><div className="border-t border-forest/10 bg-sage/45 p-5"><Button asChild variant="outline" size="sm"><Link to="/app/check-in">Start a check-in <ArrowRight size={14} /></Link></Button></div></Card><div className="grid gap-5"><Card className="relative overflow-hidden bg-forest p-6 text-white"><div className="absolute -right-5 -bottom-10 size-40 rounded-full bg-nuraa/45 blur-2xl" /><p className="relative text-[10px] font-bold tracking-[.12em] text-white/65">DAILY BRIEF · PHASE 1</p><h2 className="relative mt-3 text-xl font-semibold">Your foundation is ready to grow with you.</h2><p className="relative mt-2 max-w-xl text-sm leading-6 text-white/75">The Nuraa Score, personalised guidance, and connected signals are intentionally placeholders in Phase 1. Your saved context is the starting point.</p></Card><Card className="p-5"><div className="flex items-center justify-between"><h2 className="font-semibold text-forest">Today’s priorities</h2><span className="rounded-full bg-sand/60 px-2.5 py-1 text-[10px] font-bold text-forest/65">SETUP STATE</span></div><div className="mt-4 grid gap-3 sm:grid-cols-3">{[[Salad, 'Start a check-in', 'Give Nuraa your first daily signal'], [Waves, 'Build your routine', 'Your dashboard will adapt over time'], [Moon, 'Protect recovery', 'Sleep tracking arrives later']].map(([Icon, title, copy]) => { const PriorityIcon = Icon as typeof Salad; return <div key={title as string} className="rounded-2xl bg-canvas p-4"><PriorityIcon className="text-nuraa" size={19} /><p className="mt-3 text-sm font-semibold text-forest">{title as string}</p><p className="mt-1 text-xs leading-5 text-ink/60">{copy as string}</p></div> })}</div></Card></div></div><section className="mt-6"><div className="flex items-center justify-between"><h2 className="display text-3xl text-forest">Quick actions</h2><span className="text-xs font-semibold text-forest/55">Foundation mode</span></div><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{[[HeartPulse, 'Check in', '/app/check-in'], [Utensils, 'Log meal', '/app/meals'], [Sparkles, 'Ask Nuraa', '/app/coach'], [ArrowRight, 'View progress', '/app/progress']].map(([Icon, label, to]) => { const ActionIcon = Icon as typeof HeartPulse; return <Link to={to as string} key={label as string} className="group rounded-3xl border border-forest/10 bg-white p-5 transition hover:-translate-y-0.5 hover:border-nuraa/30"><ActionIcon className="text-nuraa" size={22} /><p className="mt-8 text-sm font-semibold text-forest">{label as string}</p><p className="mt-1 text-xs text-ink/55">Coming soon</p></Link> })}</div></section><section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><EmptyPlaceholder title="Meals" description="Meal logging will be available in a future phase." icon={Utensils} /><EmptyPlaceholder title="Workout" description="Workouts are not part of this foundation release." icon={HeartPulse} /><EmptyPlaceholder title="Sleep" description="Connect sleep signals in a future release." icon={Moon} /><EmptyPlaceholder title="Hydration" description="Hydration tracking will appear here later." icon={Droplets} /></section></div> }
+function queryStatus(isLoading: boolean, isError: boolean, hasData = true): WidgetStatus {
+  if (isLoading) return 'loading'
+  if (isError) return 'error'
+  if (!hasData) return 'empty'
+  return 'populated'
+}
+
+export function DashboardPage() {
+  const user = useAuthStore((state) => state.user)!
+  const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
+  const dashboard = useQuery({ queryKey: ['dashboard-summary', user.id], queryFn: () => getDashboardSummary(user.id) })
+  const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
+  const greeting = getTimeOfDayGreeting(new Date(), profile.data?.profile.timezone)
+  const status = queryStatus(dashboard.isLoading, dashboard.isError)
+  const score = dashboard.data?.score
+  const latestCheckin = dashboard.data?.latestCheckin
+  const weeklyCheckins = dashboard.data?.weeklyCheckins ?? []
+
+  return (
+    <DashboardLayout>
+      <MobileHeader userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
+      <DesktopHeader title={`${greeting}, ${name}.`} subtitle="Here’s your calm health overview for today." userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
+
+      <div className="md:hidden">
+        <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Your daily view</p>
+        <h1 className="display mt-2 text-4xl leading-none text-forest">{greeting}, {name}.</h1>
+        <p className="mt-2 text-sm text-ink/60">Here’s your calm health overview for today.</p>
+      </div>
+
+      <DashboardGrid>
+        <section className="grid gap-5 lg:col-span-4">
+          <NuraaScoreCard score={score?.total_score ?? 0} category={score?.readiness_category ?? 'Setting up'} reason={score?.score_reason} status={status} onRetry={() => void dashboard.refetch()} />
+          <InsightCard icon={HeartPulse} title="Setup insight" description="Your dashboard is connected to Supabase and ready to become more adaptive as you add daily check-ins." status={status} />
+        </section>
+
+        <section className="grid gap-5 lg:col-span-8">
+          <DailyBriefCard status={status} onRetry={() => void dashboard.refetch()} />
+          <TodaysPrioritiesCard status={status} onRetry={() => void dashboard.refetch()} />
+        </section>
+
+        <section className="lg:col-span-12">
+          <SectionHeader title="Today’s foundation" eyebrow="Signals" action={<Button asChild variant="secondary" size="sm"><Link to="/app/check-in">Start check-in</Link></Button>} />
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricTile icon={Salad} label="Calories" value={`${dashboardPlaceholderMetrics.calories.current.toLocaleString()}`} detail={`${dashboardPlaceholderMetrics.calories.percent}% setup target`} />
+            <MetricTile icon={Activity} label="Steps" value={dashboardPlaceholderMetrics.steps.current.toLocaleString()} detail={`${dashboardPlaceholderMetrics.steps.percent}% setup target`} />
+            <MetricTile icon={Waves} label="Stress" value={latestCheckin?.stress_level ? `${latestCheckin.stress_level}/5` : '—'} detail="From latest check-in" tone="amber" />
+            <MetricTile icon={Moon} label="Sleep" value={latestCheckin?.sleep_quality ? `${latestCheckin.sleep_quality}/5` : '—'} detail="From latest check-in" tone="violet" />
+          </div>
+        </section>
+
+        <section className="grid gap-5 md:grid-cols-2 lg:col-span-8">
+          <MealCard status={status} />
+          <WorkoutCard status={status} />
+          <HydrationCard status={status} />
+          <SleepCard quality={latestCheckin?.sleep_quality} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(latestCheckin))} />
+        </section>
+
+        <section className="grid gap-5 lg:col-span-4">
+          <ProgressCard values={[...dashboardPlaceholderMetrics.progress]} status={status} />
+          <WeeklyReportCard checkins={weeklyCheckins.length} status={status} />
+        </section>
+      </DashboardGrid>
+    </DashboardLayout>
+  )
+}

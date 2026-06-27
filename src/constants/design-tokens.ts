@@ -1,0 +1,72 @@
+export const designTokens = {
+  colors: {
+    canvas: '#FAF9F7',
+    primary: '#0E766E',
+    forest: '#16342F',
+    sand: '#E8DFC9',
+    sage: '#EEF4F0',
+    ink: '#172422',
+    white: '#FFFFFF',
+    blue: '#2F80C9',
+    amber: '#F59E0B',
+    rose: '#E86F61',
+    violet: '#8B6ED7',
+  },
+  typography: {
+    body: '"DM Sans", sans-serif',
+    display: '"DM Serif Display", serif',
+    sizes: {
+      xs: '0.75rem',
+      sm: '0.875rem',
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+      '2xl': '1.5rem',
+      '3xl': '1.875rem',
+      '4xl': '2.25rem',
+      '5xl': '3rem',
+    },
+  },
+  spacing: {
+    1: '0.25rem',
+    2: '0.5rem',
+    3: '0.75rem',
+    4: '1rem',
+    5: '1.25rem',
+    6: '1.5rem',
+    8: '2rem',
+    10: '2.5rem',
+    12: '3rem',
+  },
+  radius: {
+    input: '1rem',
+    button: '1rem',
+    card: '1.5rem',
+    panel: '2rem',
+    full: '9999px',
+  },
+  shadows: {
+    card: '0 8px 30px rgba(22, 52, 47, 0.05)',
+    elevated: '0 22px 50px rgba(22, 52, 47, 0.12)',
+    focus: '0 0 0 3px rgba(14, 118, 110, 0.16)',
+  },
+  motion: {
+    fast: '140ms ease',
+    base: '180ms ease',
+    slow: '260ms ease',
+  },
+  breakpoints: {
+    mobile: 390,
+    tablet: 768,
+    desktop: 1280,
+    largeDesktop: 1440,
+  },
+  sizes: {
+    sidebar: '17rem',
+    bottomNav: '4.5rem',
+    dashboardMaxWidth: '90rem',
+    headerHeight: '5rem',
+  },
+} as const
+
+export type DesignTokens = typeof designTokens
