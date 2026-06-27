@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, HeartPulse } from 'lucide-react'
+import { Activity, CalendarDays, HeartPulse, Smile } from 'lucide-react'
 import { NotificationBell } from '@/components/app/NotificationBell'
 import { ProfileAvatar } from '@/components/app/ProfileAvatar'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,8 @@ import { SleepCard } from '@/features/dashboard/components/SleepCard'
 import { TodaysPrioritiesCard } from '@/features/dashboard/components/TodaysPrioritiesCard'
 import { WeeklyReportCard } from '@/features/dashboard/components/WeeklyReportCard'
 import { WorkoutCard } from '@/features/dashboard/components/WorkoutCard'
+import { PermissionConnectionCard, ProfileHeroCard } from '@/features/profile/ProfilePage'
+import type { Profile } from '@/types/database'
 
 export function ComponentPlaygroundPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -36,7 +38,7 @@ export function ComponentPlaygroundPage() {
   return (
     <DashboardLayout>
       <SectionHeader title="Component playground" eyebrow="Internal design system" action={<Button onClick={() => setModalOpen(true)}>Open modal</Button>} />
-      <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">Reusable Phase 2 components, states, tokens, and dashboard widgets. This page intentionally uses placeholder content and no AI calls.</p>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">Reusable components, states, tokens, and dashboard widgets for keeping Nuraa visually consistent.</p>
 
       <section className="mt-8">
         <h2 className="text-lg font-bold text-forest">Design tokens</h2>
@@ -95,6 +97,8 @@ function WidgetGrid() {
       <ProgressCard />
       <WeeklyReportCard checkins={4} />
       <InsightCard icon={HeartPulse} title="Insight card" description="Reusable surface for future guidance." />
+      <ProfileExamples />
+      <CheckInControlExample />
     </div>
   )
 }
@@ -105,8 +109,68 @@ function StateGrid() {
       <DashboardCard title="Loading state"><LoadingSkeleton className="mt-4 h-32" /></DashboardCard>
       <DashboardCard title="Empty wrapper" status="empty" empty={{ title: 'Empty state', description: 'Reusable empty state with illustration.', image: hydrationIllustration }}>Unused</DashboardCard>
       <DashboardCard title="Error wrapper" status="error">Unused</DashboardCard>
+      <NuraaScoreCard status="empty" />
+      <DailyBriefCard status="loading" />
+      <TodaysPrioritiesCard status="error" />
       <EmptyState title="Standalone empty" description="A standalone reusable empty state." image={hydrationIllustration} />
       <ErrorState title="Standalone error" description="A standalone reusable error state." />
+      <SuccessModalExample />
     </div>
+  )
+}
+
+const demoProfile: Profile = {
+  id: 'profile-demo',
+  full_name: 'Ananya Rao',
+  email: 'ananya@nuraa.health',
+  phone: null,
+  avatar_url: null,
+  date_of_birth: null,
+  age: 31,
+  gender: 'female',
+  location_city: 'Mumbai',
+  location_country: 'India',
+  timezone: 'Asia/Kolkata',
+  onboarding_completed: true,
+  created_at: '2026-06-01T00:00:00.000Z',
+  updated_at: '2026-06-01T00:00:00.000Z',
+}
+
+function ProfileExamples() {
+  return (
+    <div className="lg:col-span-2">
+      <ProfileHeroCard profile={demoProfile} email={demoProfile.email} activeGoals={3} />
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <PermissionConnectionCard title="Calendar" description="Helps Nuraa understand your schedule" enabled={false} icon={CalendarDays} />
+        <PermissionConnectionCard title="Camera" description="Used later for food photo logging" enabled icon={HeartPulse} />
+      </div>
+    </div>
+  )
+}
+
+function CheckInControlExample() {
+  return (
+    <DashboardCard title="Check-in controls">
+      <div className="mt-4 rounded-3xl border border-forest/10 bg-canvas p-4">
+        <legend className="flex items-center gap-2 text-sm font-bold text-forest"><Smile size={17} className="text-nuraa" /> Mood</legend>
+        <div className="mt-4 grid grid-cols-5 gap-2">
+          {['Very low', 'Low', 'Okay', 'Good', 'Great'].map((label, index) => (
+            <button key={label} type="button" aria-pressed={index === 3} className={`rounded-2xl border p-3 text-center text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nuraa/25 ${index === 3 ? 'border-nuraa bg-sage text-forest' : 'border-forest/10 bg-white text-forest/65'}`}>{label}</button>
+          ))}
+        </div>
+      </div>
+    </DashboardCard>
+  )
+}
+
+function SuccessModalExample() {
+  return (
+    <DashboardCard title="Success modal">
+      <div className="mt-4 rounded-3xl border border-forest/10 bg-white p-5 text-center">
+        <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-sage text-nuraa"><Smile size={22} /></div>
+        <p className="mt-4 font-semibold text-forest">Check-in saved</p>
+        <p className="mt-1 text-sm leading-6 text-ink/60">Your health signal has been captured. Nuraa is updating your dashboard.</p>
+      </div>
+    </DashboardCard>
   )
 }

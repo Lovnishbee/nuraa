@@ -1,13 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Battery, Brain, Heart, Moon, Smile, Sparkles, Zap } from 'lucide-react'
+import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Modal } from '@/components/ui/Modal'
 import recoveryIllustration from '@/assets/dashboard/recovery_illustration.png'
 import reflectionIllustration from '@/assets/dashboard/reflection_illustration.png'
 import { saveDailyCheckIn } from '@/services/checkins'
@@ -47,6 +49,7 @@ const scaleFields = [
 
 export function DailyCheckInPage() {
   const user = useAuthStore((state) => state.user)!
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const draftNotes = useCheckInStore((state) => state.draftNotes)
   const setDraftNotes = useCheckInStore((state) => state.setDraftNotes)
@@ -65,6 +68,12 @@ export function DailyCheckInPage() {
     },
   })
 
+  useEffect(() => {
+    if (!mutation.isSuccess) return
+    const timeout = window.setTimeout(() => navigate('/app/dashboard', { replace: true }), 1700)
+    return () => window.clearTimeout(timeout)
+  }, [mutation.isSuccess, navigate])
+
   return (
     <div className="mx-auto w-full max-w-[1180px] px-5 py-5 sm:px-7 lg:px-10 lg:py-8">
       <MobileHeader userName={profile?.profile.full_name} avatarUrl={profile?.profile.avatar_url} />
@@ -72,7 +81,7 @@ export function DailyCheckInPage() {
         <aside className="hidden rounded-[32px] border border-forest/10 bg-white p-7 shadow-sm lg:block">
           <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Daily ritual</p>
           <h1 className="display mt-4 text-5xl leading-none text-forest">A quick read on how you feel today.</h1>
-          <p className="mt-5 text-sm leading-6 text-ink/62">This check-in powers the dashboard framework using your own Supabase data. No AI interpretation is active yet.</p>
+          <p className="mt-5 text-sm leading-6 text-ink/62">Your check-in powers your dashboard and helps Nuraa learn your patterns over time.</p>
           <EmptyState title="Private by design" description="Your check-in saves only to your Nuraa account." image={reflectionIllustration} className="mt-8" />
         </aside>
 
@@ -81,7 +90,7 @@ export function DailyCheckInPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Daily check-in</p>
               <h1 className="display mt-2 text-4xl leading-none text-forest">How is your body today?</h1>
-              <p className="mt-2 text-sm text-ink/60">Takes under a minute. All fields can be changed later today.</p>
+              <p className="mt-2 text-sm text-ink/60">A one-minute check-in helps Nuraa understand your readiness for the day.</p>
             </div>
             <img src={recoveryIllustration} alt="" className="hidden size-20 rounded-3xl object-cover object-top sm:block" />
           </div>
@@ -92,7 +101,7 @@ export function DailyCheckInPage() {
                 <legend className="mb-3 flex items-center gap-2 text-sm font-bold text-forest"><Smile size={18} className="text-nuraa" /> Mood</legend>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {moodOptions.map((option) => (
-                    <button key={option.value} type="button" onClick={() => field.onChange(option.value)} className={cn('rounded-2xl border p-3 text-center transition', field.value === option.value ? 'border-nuraa bg-sage text-forest' : 'border-forest/10 bg-white text-forest/65 hover:border-nuraa/35')}>
+                    <button key={option.value} type="button" aria-pressed={field.value === option.value} onClick={() => field.onChange(option.value)} className={cn('rounded-2xl border p-3 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nuraa/25', field.value === option.value ? 'border-nuraa bg-sage text-forest' : 'border-forest/10 bg-white text-forest/65 hover:border-nuraa/35')}>
                       <span className="text-2xl">{option.icon}</span>
                       <span className="mt-1 block text-xs font-semibold">{option.label}</span>
                     </button>
@@ -108,7 +117,7 @@ export function DailyCheckInPage() {
                   <fieldset className="rounded-3xl border border-forest/10 bg-canvas p-4">
                     <legend className="flex items-center gap-2 text-sm font-bold text-forest"><Icon size={17} className="text-nuraa" /> {label}</legend>
                     <div className="mt-4 grid grid-cols-5 gap-2">
-                      {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" onClick={() => field.onChange(value)} className={cn('grid size-10 place-items-center rounded-xl border text-sm font-bold transition', field.value === value ? 'border-nuraa bg-nuraa text-white' : 'border-forest/10 bg-white text-forest/60 hover:border-nuraa/30')}>{value}</button>)}
+                      {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={`${label} ${value} out of 5`} aria-pressed={field.value === value} onClick={() => field.onChange(value)} className={cn('grid size-10 place-items-center rounded-xl border text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nuraa/25', field.value === value ? 'border-nuraa bg-nuraa text-white' : 'border-forest/10 bg-white text-forest/60 hover:border-nuraa/30')}>{value}</button>)}
                     </div>
                     <div className="mt-2 flex justify-between text-[11px] font-semibold text-ink/45"><span>{low}</span><span>{high}</span></div>
                   </fieldset>
@@ -129,7 +138,7 @@ export function DailyCheckInPage() {
             </div>
 
             {mutation.isError && <p role="alert" className="rounded-2xl bg-red-50 p-3 text-sm text-red-800">{mutation.error instanceof Error ? mutation.error.message : 'Unable to save check-in.'}</p>}
-            {mutation.isSuccess && <p role="status" className="rounded-2xl bg-sage p-3 text-sm font-semibold text-forest"><Sparkles size={16} className="mr-1 inline text-nuraa" /> Check-in saved. Your dashboard will update from this signal.</p>}
+            {mutation.isSuccess && <p role="status" className="rounded-2xl bg-sage p-3 text-sm font-semibold text-forest"><Sparkles size={16} className="mr-1 inline text-nuraa" /> Check-in saved. Taking you back to your dashboard.</p>}
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button type="submit" size="lg" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save check-in'}</Button>
@@ -138,6 +147,15 @@ export function DailyCheckInPage() {
           </form>
         </Card>
       </div>
+
+      <Modal open={mutation.isSuccess} title="Check-in saved" onClose={() => navigate('/app/dashboard', { replace: true })}>
+        <div className="text-center">
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-sage text-nuraa"><Sparkles size={24} /></div>
+          <p className="mt-5 text-base leading-7 text-ink/75">Your health signal has been captured. Nuraa is updating your dashboard.</p>
+          <p className="mt-2 text-sm leading-6 text-ink/58">Small daily signals create better guidance over time.</p>
+          <Button className="mt-6 w-full" onClick={() => navigate('/app/dashboard', { replace: true })}>View dashboard</Button>
+        </div>
+      </Modal>
     </div>
   )
 }
