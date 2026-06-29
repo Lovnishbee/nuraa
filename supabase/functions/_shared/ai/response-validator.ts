@@ -1,0 +1,56 @@
+import { AskAboutTodayResponseSchema, DailyBriefRewriteResponseSchema, ExplainScoreResponseSchema } from './schemas.ts'
+import type { AIResponsePayload, ContextEnvelope, TaskType, ValidationResult } from './types.ts'
+
+const prohibitedPatterns = [
+  /\bdiagnos(e|is|ed)\b/i,
+  /\b(start|stop|change|increase|decrease)\s+(your\s+)?(medication|medicine|dose|dosage|tablet|insulin|metformin)\b/i,
+  /\byour score should be\b/i,
+  /\bi recalculated\b/i,
+  /\bthe cause is\b/i,
+]
+
+export function validateAIResponse(taskType: TaskType, payload: unknown, context: ContextEnvelope): ValidationResult {
+  const schemaResult = parseTaskPayload(taskType, payload)
+  if (!schemaResult.ok) return schemaResult
+  const businessResult = validateBusinessRules(taskType, schemaResult.payload, context)
+  if (!businessResult.ok) return businessResult
+  return { ok: true, payload: schemaResult.payload, schemaVersion: 'phase4a.v1' }
+}
+
+function parseTaskPayload(taskType: TaskType, payload: unknown): ValidationResult {
+  const schema = taskType === 'rewrite_daily_brief'
+    ? DailyBriefRewriteResponseSchema
+    : taskType === 'explain_score'
+      ? ExplainScoreResponseSchema
+      : AskAboutTodayResponseSchema
+  const parsed = schema.safeParse(payload)
+  if (!parsed.success) return { ok: false, errorCode: 'SCHEMA_VALIDATION_FAILED' }
+  return { ok: true, payload: parsed.data as AIResponsePayload, schemaVersion: 'phase4a.v1' }
+}
+
+function validateBusinessRules(taskType: TaskType, payload: AIResponsePayload, context: ContextEnvelope): ValidationResult {
+  const text = JSON.stringify(payload)
+  if (prohibitedPatterns.some((pattern) => pattern.test(text))) return { ok: false, errorCode: 'PROHIBITED_CLAIM' }
+  if (!validateSourceReferences(payload.sourceReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
+
+  if (taskType === 'explain_score') {
+    const explain = payload as Extract<AIResponsePayload, { followUpQuestions: string[] }>
+    if (explain.followUpQuestions.length > 3) return { ok: false, errorCode: 'TOO_MANY_FOLLOW_UPS' }
+    const basisReferences = explain.factualBasis.map((basis) => basis.sourceReference)
+    if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
+  }
+
+  if (taskType === 'ask_about_today') {
+    const ask = payload as Extract<AIResponsePayload, { suggestedPrompts: string[] }>
+    if (ask.suggestedPrompts.length > 4) return { ok: false, errorCode: 'TOO_MANY_SUGGESTED_PROMPTS' }
+    const basisReferences = ask.factualBasis.map((basis) => basis.sourceReference)
+    if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
+  }
+
+  return { ok: true, payload, schemaVersion: 'phase4a.v1' }
+}
+
+function validateSourceReferences(references: string[], context: ContextEnvelope): boolean {
+  const allowed = new Set([...context.sourceReferences, 'safety_policy:phase4a.v1', 'deterministic:nuraa'])
+  return references.every((reference) => allowed.has(reference))
+}

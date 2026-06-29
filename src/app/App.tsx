@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/features/auth/AuthProvider'
+import { AIRuntimeDevPage } from '@/features/ai/dev/AIRuntimeDevPage'
 import { DailyCheckInPage } from '@/features/checkin/DailyCheckInPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
@@ -46,6 +47,7 @@ export function App() {
               <Route path="/app/reports" element={<ReportsPage />} />
               <Route path="/app/profile" element={<ProfilePage />} />
               <Route path="/dev/components" element={<ComponentPlaygroundPage />} />
+              <Route path="/dev/ai-runtime" element={<AIRuntimeDevPage />} />
               <Route path="/app/:feature" element={<ComingSoonPage />} />
             </Route>
           </Route>
