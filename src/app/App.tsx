@@ -5,6 +5,8 @@ import { DailyCheckInPage } from '@/features/checkin/DailyCheckInPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { ProgressPage } from '@/features/progress/ProgressPage'
+import { ReportsPage } from '@/features/reports/ReportsPage'
 import { AppLayout } from '@/layouts/AppLayout'
 import { OnboardingLayout } from '@/layouts/OnboardingLayout'
 import { PublicLayout } from '@/layouts/PublicLayout'
@@ -40,6 +42,8 @@ export function App() {
             <Route element={<AppLayout />}>
               <Route path="/app/dashboard" element={<DashboardPage />} />
               <Route path="/app/check-in" element={<DailyCheckInPage />} />
+              <Route path="/app/progress" element={<ProgressPage />} />
+              <Route path="/app/reports" element={<ReportsPage />} />
               <Route path="/app/profile" element={<ProfilePage />} />
               <Route path="/dev/components" element={<ComponentPlaygroundPage />} />
               <Route path="/app/:feature" element={<ComingSoonPage />} />

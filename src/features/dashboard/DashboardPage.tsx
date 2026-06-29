@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Moon, Salad, Waves } from 'lucide-react'
+import { Battery, HeartPulse, Moon, Waves } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DesktopHeader } from '@/components/app/DesktopHeader'
 import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
-import { dashboardMetrics } from '@/constants/dashboard-content'
-import { getDashboardSummary } from '@/services/dashboard'
+import { getDashboardIntelligenceSummary } from '@/services/dashboardService'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
@@ -22,7 +21,6 @@ import { TodaysPrioritiesCard } from './components/TodaysPrioritiesCard'
 import type { WidgetStatus } from './components/types'
 import { WeeklyReportCard } from './components/WeeklyReportCard'
 import { WorkoutCard } from './components/WorkoutCard'
-import { getDashboardReadiness } from './readiness'
 
 function queryStatus(isLoading: boolean, isError: boolean, hasData = true): WidgetStatus {
   if (isLoading) return 'loading'
@@ -31,17 +29,27 @@ function queryStatus(isLoading: boolean, isError: boolean, hasData = true): Widg
   return 'populated'
 }
 
+type FocusItem = { title: string; description: string; category?: string }
+
+function parseFocusItems(value: unknown): FocusItem[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is FocusItem => Boolean(item && typeof item === 'object' && 'title' in item && 'description' in item))
+    : []
+}
+
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)!
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
-  const dashboard = useQuery({ queryKey: ['dashboard-summary', user.id], queryFn: () => getDashboardSummary(user.id) })
+  const dashboard = useQuery({ queryKey: ['dashboard-intelligence', user.id], queryFn: () => getDashboardIntelligenceSummary(user.id) })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const greeting = getTimeOfDayGreeting(new Date(), profile.data?.profile.timezone)
-  const status = queryStatus(dashboard.isLoading, dashboard.isError)
   const score = dashboard.data?.score
-  const latestCheckin = dashboard.data?.latestCheckin
-  const weeklyCheckins = dashboard.data?.weeklyCheckins ?? []
-  const readiness = getDashboardReadiness(score, latestCheckin, weeklyCheckins.length)
+  const signal = dashboard.data?.signal
+  const brief = dashboard.data?.brief
+  const focusItems = parseFocusItems(brief?.focus_items)
+  const scoreStatus = queryStatus(dashboard.isLoading, dashboard.isError, Boolean(score))
+  const signalStatus = queryStatus(dashboard.isLoading, dashboard.isError, Boolean(signal))
+  const trendValues = dashboard.data?.scoreHistory.map((item) => item.total_score ?? 70) ?? []
 
   return (
     <DashboardLayout>
@@ -56,33 +64,44 @@ export function DashboardPage() {
 
       <div className="mt-7 grid gap-6">
         <section className="grid gap-6 xl:grid-cols-[0.92fr_1.38fr]">
-          <NuraaScoreCard score={readiness.score} category={readiness.category} reason={readiness.reason} note={readiness.note} hasBaseline={readiness.hasBaseline} status={status} onRetry={() => void dashboard.refetch()} />
-          <DailyBriefCard status={status} onRetry={() => void dashboard.refetch()} />
+          <NuraaScoreCard
+            score={score?.total_score}
+            category={score?.readiness_category}
+            reason={score?.score_reason}
+            note={score?.recommended_focus}
+            confidence={score?.confidence}
+            primaryDriver={score?.primary_driver}
+            limitingFactor={score?.limiting_factor}
+            hasBaseline={Boolean(score)}
+            status={scoreStatus}
+            onRetry={() => void dashboard.refetch()}
+          />
+          <DailyBriefCard brief={brief} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(brief))} onRetry={() => void dashboard.refetch()} />
         </section>
 
         <section>
-          <TodaysPrioritiesCard status={status} onRetry={() => void dashboard.refetch()} />
+          <TodaysPrioritiesCard items={focusItems} status={queryStatus(dashboard.isLoading, dashboard.isError, focusItems.length > 0)} onRetry={() => void dashboard.refetch()} />
         </section>
 
         <section>
           <SectionHeader title="Signals" eyebrow="Learning your routine" action={<Button asChild variant="secondary" size="sm"><Link to="/app/check-in">Daily check-in</Link></Button>} />
           <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricTile icon={Salad} label="Calories" value={`${dashboardMetrics.calories.current.toLocaleString()}`} detail="Nutrition target from your profile" />
-            <MetricTile icon={Activity} label="Steps" value={dashboardMetrics.steps.current.toLocaleString()} detail="Movement rhythm forming" />
-            <MetricTile icon={Waves} label="Stress" value={latestCheckin?.stress_level ? `${latestCheckin.stress_level}/5` : '—'} detail="From latest check-in" tone="amber" />
-            <MetricTile icon={Moon} label="Sleep" value={latestCheckin?.sleep_quality ? `${latestCheckin.sleep_quality}/5` : '—'} detail="From latest check-in" tone="violet" />
+            <MetricTile icon={Moon} label="Sleep signal" value={signal?.sleep_score ? `${signal.sleep_score}/100` : '—'} detail={signal?.sleep_hours ? `${signal.sleep_hours}h logged` : 'From latest check-in'} tone="violet" />
+            <MetricTile icon={Waves} label="Stress signal" value={signal?.stress_score ? `${signal.stress_score}/100` : '—'} detail={signal?.stress_level ? `${signal.stress_level}/5 stress level` : 'From latest check-in'} tone="amber" />
+            <MetricTile icon={HeartPulse} label="Recovery" value={signal?.recovery_score ? `${signal.recovery_score}/100` : '—'} detail={signal?.soreness_level ? `${signal.soreness_level}/5 soreness` : 'Energy and soreness blend'} />
+            <MetricTile icon={Battery} label="Energy" value={signal?.energy_level ? `${signal.energy_level}/5` : '—'} detail="From latest check-in" tone="blue" />
           </div>
         </section>
 
         <section>
-          <SectionHeader title="Your day at a glance" eyebrow={readiness.checkinCountLabel} />
+          <SectionHeader title="Your day at a glance" eyebrow={score ? `${score.score_date} • deterministic intelligence` : 'Complete a check-in to start'} />
           <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <MealCard status={status} />
-            <WorkoutCard status={status} />
-            <HydrationCard status={status} />
-          <SleepCard quality={latestCheckin?.sleep_quality} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(latestCheckin))} />
-            <ProgressCard values={[...dashboardMetrics.progress]} status={status} />
-            <WeeklyReportCard checkins={weeklyCheckins.length} status={status} />
+            <MealCard status={signalStatus} />
+            <WorkoutCard status={signalStatus} />
+            <HydrationCard status={signalStatus} />
+            <SleepCard quality={signal?.sleep_quality} status={signalStatus} />
+            <ProgressCard values={trendValues} status={queryStatus(dashboard.isLoading, dashboard.isError, trendValues.length > 0)} />
+            <WeeklyReportCard checkins={dashboard.data?.scoreHistory.length ?? 0} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(score))} />
           </div>
         </section>
       </div>

@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
 import recoveryIllustration from '@/assets/dashboard/recovery_illustration.png'
 import reflectionIllustration from '@/assets/dashboard/reflection_illustration.png'
-import { saveDailyCheckIn } from '@/services/checkins'
+import { saveDailyCheckInWithIntelligence } from '@/services/checkInService'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 import { useCheckInStore } from '@/stores/checkin-store'
@@ -61,10 +61,13 @@ export function DailyCheckInPage() {
 
   const profile = queryClient.getQueryData<Awaited<ReturnType<typeof getProfileBundle>>>(['profile', user.id])
   const mutation = useMutation({
-    mutationFn: (values: CheckInValues) => saveDailyCheckIn(user.id, values),
+    mutationFn: (values: CheckInValues) => saveDailyCheckInWithIntelligence(user.id, values),
     onSuccess: () => {
       markSaved()
       void queryClient.invalidateQueries({ queryKey: ['dashboard-summary', user.id] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-intelligence', user.id] })
+      void queryClient.invalidateQueries({ queryKey: ['progress-summary', user.id] })
+      void queryClient.invalidateQueries({ queryKey: ['insights-summary', user.id] })
     },
   })
 
