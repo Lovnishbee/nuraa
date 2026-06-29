@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase'
+import { getTodayInTimezone } from '@/lib/date'
 import type { HealthProfile, UserPermissions, UserPreferences } from '@/types/database'
 
 type UpdatableProfile = { full_name?: string; age?: number; gender?: string }
@@ -44,7 +45,7 @@ export async function completeOnboarding(userId: string) {
   const [profile, subscription, score] = await Promise.all([
     supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId),
     supabase.from('subscriptions').upsert({ user_id: userId, plan_name: 'free', status: 'active' }, { onConflict: 'user_id' }),
-    supabase.from('nuraa_scores').upsert({ user_id: userId, score_date: new Date().toISOString().slice(0, 10), total_score: 0, readiness_category: 'Setting up', score_reason: 'Complete your first daily check-in to begin your readiness baseline.', recommended_focus: 'Start with a check-in' }, { onConflict: 'user_id,score_date' }),
+    supabase.from('nuraa_scores').upsert({ user_id: userId, score_date: getTodayInTimezone(), total_score: 0, readiness_category: 'Setting up', score_reason: 'Complete your first daily check-in to begin your readiness baseline.', recommended_focus: 'Start with a check-in' }, { onConflict: 'user_id,score_date' }),
   ])
   if (profile.error || subscription.error || score.error) throw profile.error ?? subscription.error ?? score.error
 }

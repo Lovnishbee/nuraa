@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import reflectionIllustration from '@/assets/dashboard/reflection_illustration.png'
-import { getInsightsSummary } from '@/services/insightsService'
+import { getInsightsSummary } from '@/services/intelligence'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
+import { getCurrentDate } from '@/lib/date'
 import { DashboardCard } from '../dashboard/components/DashboardCard'
 import { DashboardLayout } from '../dashboard/components/DashboardLayout'
 import { SectionHeader } from '../dashboard/components/SectionHeader'
@@ -40,7 +41,7 @@ export function ReportsPage() {
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
   const reports = useQuery({ queryKey: ['insights-summary', user.id], queryFn: () => getInsightsSummary(user.id) })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
-  const greeting = getTimeOfDayGreeting(new Date(), profile.data?.profile.timezone)
+  const greeting = getTimeOfDayGreeting(getCurrentDate(), profile.data?.profile.timezone)
   const brief = reports.data?.brief
   const score = reports.data?.score
   const insights = reports.data?.insights ?? []

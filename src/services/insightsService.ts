@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase'
 import type { DailyBriefRow, HealthSignalRow, InsightEvent, NuraaScore, ScoreFactor } from '@/types/database'
-import { backfillMissingIntelligenceForUser } from './intelligenceService'
+import { localIntelligenceProvider } from './intelligence/provider'
 
 export type InsightsSummary = {
   brief: DailyBriefRow | null
@@ -11,7 +11,7 @@ export type InsightsSummary = {
 }
 
 export async function getInsightsSummary(userId: string): Promise<InsightsSummary> {
-  await backfillMissingIntelligenceForUser(userId)
+  await localIntelligenceProvider.backfill(userId)
   const supabase = getSupabaseClient()
   const [brief, score, signal, factors, insights] = await Promise.all([
     supabase.from('daily_briefs').select('*').eq('user_id', userId).order('brief_date', { ascending: false }).limit(1).maybeSingle(),

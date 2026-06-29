@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/lib/supabase'
+import { getLocalISODateWithOffset } from '@/lib/date'
 import type { HealthSignalRow, InsightEvent, NuraaScore, ScoreFactor } from '@/types/database'
-import { backfillMissingIntelligenceForUser } from './intelligenceService'
+import { localIntelligenceProvider } from './intelligence/provider'
 
 export type ProgressRange = '7d' | '30d'
 
@@ -13,13 +14,11 @@ export type ProgressSummary = {
 }
 
 function startDateForRange(range: ProgressRange) {
-  const date = new Date()
-  date.setDate(date.getDate() - (range === '7d' ? 6 : 29))
-  return date.toISOString().slice(0, 10)
+  return getLocalISODateWithOffset(-(range === '7d' ? 6 : 29))
 }
 
 export async function getProgressSummary(userId: string, range: ProgressRange): Promise<ProgressSummary> {
-  await backfillMissingIntelligenceForUser(userId)
+  await localIntelligenceProvider.backfill(userId)
   const supabase = getSupabaseClient()
   const start = startDateForRange(range)
   const [scores, signals, factors, insights] = await Promise.all([

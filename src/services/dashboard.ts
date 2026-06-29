@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase'
+import { getLocalISODateWithOffset } from '@/lib/date'
 import type { DailyCheckin, NuraaScore } from '@/types/database'
 
 export async function getLatestScore(userId: string): Promise<NuraaScore | null> {
@@ -15,14 +16,12 @@ export type DashboardSummary = {
 
 export async function getDashboardSummary(userId: string): Promise<DashboardSummary> {
   const supabase = getSupabaseClient()
-  const today = new Date()
-  const sevenDaysAgo = new Date(today)
-  sevenDaysAgo.setDate(today.getDate() - 6)
+  const sevenDaysAgo = getLocalISODateWithOffset(-6)
 
   const [score, latestCheckin, weeklyCheckins] = await Promise.all([
     supabase.from('nuraa_scores').select('*').eq('user_id', userId).order('score_date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('daily_checkins').select('*').eq('user_id', userId).order('checkin_date', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('daily_checkins').select('*').eq('user_id', userId).gte('checkin_date', sevenDaysAgo.toISOString().slice(0, 10)).order('checkin_date', { ascending: true }),
+    supabase.from('daily_checkins').select('*').eq('user_id', userId).gte('checkin_date', sevenDaysAgo).order('checkin_date', { ascending: true }),
   ])
 
   if (score.error || latestCheckin.error || weeklyCheckins.error) throw score.error ?? latestCheckin.error ?? weeklyCheckins.error

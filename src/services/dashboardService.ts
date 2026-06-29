@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/lib/supabase'
+import { getLocalISODateWithOffset } from '@/lib/date'
 import type { DailyBriefRow, HealthSignalRow, InsightEvent, NuraaScore, ScoreFactor } from '@/types/database'
-import { backfillMissingIntelligenceForUser } from './intelligenceService'
+import { localIntelligenceProvider } from './intelligence/provider'
 
 export type DashboardIntelligenceSummary = {
   score: NuraaScore | null
@@ -12,13 +13,12 @@ export type DashboardIntelligenceSummary = {
 }
 
 export async function getDashboardIntelligenceSummary(userId: string): Promise<DashboardIntelligenceSummary> {
-  await backfillMissingIntelligenceForUser(userId)
+  await localIntelligenceProvider.backfill(userId)
   const supabase = getSupabaseClient()
-  const historyStart = new Date()
-  historyStart.setDate(historyStart.getDate() - 6)
+  const historyStart = getLocalISODateWithOffset(-6)
   const [score, scoreHistory, signal, brief, factors, insights] = await Promise.all([
     supabase.from('nuraa_scores').select('*').eq('user_id', userId).order('score_date', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('nuraa_scores').select('*').eq('user_id', userId).gte('score_date', historyStart.toISOString().slice(0, 10)).order('score_date', { ascending: true }),
+    supabase.from('nuraa_scores').select('*').eq('user_id', userId).gte('score_date', historyStart).order('score_date', { ascending: true }),
     supabase.from('health_signals').select('*').eq('user_id', userId).order('signal_date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('daily_briefs').select('*').eq('user_id', userId).order('brief_date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('score_factors').select('*').eq('user_id', userId).order('score_date', { ascending: false }).limit(1).maybeSingle(),

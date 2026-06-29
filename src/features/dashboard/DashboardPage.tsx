@@ -4,10 +4,11 @@ import { Link } from 'react-router-dom'
 import { DesktopHeader } from '@/components/app/DesktopHeader'
 import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
-import { getDashboardIntelligenceSummary } from '@/services/dashboardService'
+import { getDashboardSummary } from '@/services/intelligence'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
+import { getCurrentDate } from '@/lib/date'
 import { DailyBriefCard } from './components/DailyBriefCard'
 import { DashboardLayout } from './components/DashboardLayout'
 import { HydrationCard } from './components/HydrationCard'
@@ -40,9 +41,9 @@ function parseFocusItems(value: unknown): FocusItem[] {
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)!
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
-  const dashboard = useQuery({ queryKey: ['dashboard-intelligence', user.id], queryFn: () => getDashboardIntelligenceSummary(user.id) })
+  const dashboard = useQuery({ queryKey: ['dashboard-intelligence', user.id], queryFn: () => getDashboardSummary(user.id) })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
-  const greeting = getTimeOfDayGreeting(new Date(), profile.data?.profile.timezone)
+  const greeting = getTimeOfDayGreeting(getCurrentDate(), profile.data?.profile.timezone)
   const score = dashboard.data?.score
   const signal = dashboard.data?.signal
   const brief = dashboard.data?.brief

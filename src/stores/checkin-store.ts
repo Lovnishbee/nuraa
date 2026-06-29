@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getCurrentTimestamp } from '@/lib/date'
 
 type CheckInStore = {
   lastSavedAt: string | null
@@ -11,5 +12,5 @@ export const useCheckInStore = create<CheckInStore>((set) => ({
   lastSavedAt: null,
   draftNotes: '',
   setDraftNotes: (draftNotes) => set({ draftNotes }),
-  markSaved: () => set({ lastSavedAt: new Date().toISOString(), draftNotes: '' }),
+  markSaved: () => set({ lastSavedAt: getCurrentTimestamp(), draftNotes: '' }),
 }))

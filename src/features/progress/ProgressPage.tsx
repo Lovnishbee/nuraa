@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { getProfileBundle } from '@/services/profile'
-import { getProgressSummary, type ProgressRange } from '@/services/progressService'
+import { getProgressSummary, type ProgressRange } from '@/services/intelligence'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
+import { getCurrentDate } from '@/lib/date'
 import { DashboardCard } from '../dashboard/components/DashboardCard'
 import { DashboardLayout } from '../dashboard/components/DashboardLayout'
 import { MetricTile } from '../dashboard/components/MetricTile'
@@ -62,7 +63,7 @@ export function ProgressPage() {
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
   const progress = useQuery({ queryKey: ['progress-summary', user.id, range], queryFn: () => getProgressSummary(user.id, range) })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
-  const greeting = getTimeOfDayGreeting(new Date(), profile.data?.profile.timezone)
+  const greeting = getTimeOfDayGreeting(getCurrentDate(), profile.data?.profile.timezone)
   const scorePoints = progress.data?.scores.map((score) => ({ date: score.score_date, value: score.total_score ?? 70 })) ?? []
   const sleepPoints = progress.data?.signals.map((signal) => ({ date: signal.signal_date, value: signal.sleep_score ?? 70 })) ?? []
   const stressPoints = progress.data?.signals.map((signal) => ({ date: signal.signal_date, value: signal.stress_score ?? 70 })) ?? []

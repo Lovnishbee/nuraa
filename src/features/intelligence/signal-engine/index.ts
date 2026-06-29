@@ -1,4 +1,5 @@
 import type { DailyCheckin, HealthProfile, Profile, UserGoal, UserPreferences } from '@/types/database'
+import { getTodayInTimezone } from '@/lib/date'
 import { average, round, scaleFivePoint } from '../scoring-utils'
 import type { HealthSignal } from '../types'
 
@@ -54,7 +55,7 @@ export function buildHealthSignal({ profile, healthProfile, goals, preferences, 
 
   return {
     userId: profile.id,
-    date: checkin?.checkin_date ?? new Date().toISOString().slice(0, 10),
+    date: checkin?.checkin_date ?? getTodayInTimezone(),
     sleep: {
       hours: checkin?.sleep_hours ?? null,
       quality: checkin?.sleep_quality ?? null,

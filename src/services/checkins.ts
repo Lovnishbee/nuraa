@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase'
+import { getTodayInTimezone } from '@/lib/date'
 import type { DailyCheckin } from '@/types/database'
 
 export type DailyCheckInInput = {
@@ -35,7 +36,7 @@ export function parseCheckInNotes(notes: string | null) {
 }
 
 export async function saveDailyCheckIn(userId: string, input: DailyCheckInInput): Promise<DailyCheckin> {
-  const checkin_date = new Date().toISOString().slice(0, 10)
+  const checkin_date = getTodayInTimezone()
   const supabase = getSupabaseClient()
   const payload = {
     user_id: userId,
