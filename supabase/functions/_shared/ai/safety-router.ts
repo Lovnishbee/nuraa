@@ -55,11 +55,20 @@ function safetyFallbackForTask(taskType: TaskType, route: Exclude<SafetyRoute, '
       sourceReferences: ['safety_policy:phase4a.v1'],
     }
   }
-  return {
+  if (taskType === 'ask_about_today') return {
     headline: 'Safety boundary',
     summary: message,
     primaryFocus: { title: 'Use appropriate care', detail: message },
     factualBasis: [{ label: 'Safety policy route', sourceReference: 'safety_policy:phase4a.v1' }],
+    suggestedPrompts: [],
+    sourceReferences: ['safety_policy:phase4a.v1'],
+  }
+  return {
+    headline: 'Safety boundary',
+    summary: message,
+    factualBasis: [{ label: 'Safety policy route', sourceReference: 'safety_policy:phase4a.v1' }],
+    interpretations: [{ statement: 'This is a safety routing response, not a diagnosis.', confidence: 'high' }],
+    clarificationQuestion: undefined,
     suggestedPrompts: [],
     sourceReferences: ['safety_policy:phase4a.v1'],
   }

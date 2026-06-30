@@ -30,12 +30,21 @@ export const PROMPT_CONTRACTS: Record<TaskType, PromptContract> = {
     maxOutputTokens: 700,
     checksum: 'phase4a-ask-about-today-v1',
   },
+  coach_follow_up: {
+    ...base,
+    name: 'coach_follow_up',
+    taskType: 'coach_follow_up',
+    modelAlias: 'nuraa_coach_balanced',
+    maxOutputTokens: 700,
+    checksum: 'phase4b-coach-follow-up-v1',
+  },
 }
 
 export const TASK_FLAG_MAP: Record<TaskType, string> = {
   rewrite_daily_brief: 'ENABLE_AI_DAILY_BRIEF',
   explain_score: 'ENABLE_AI_SCORE_EXPLANATION',
   ask_about_today: 'ENABLE_AI_ASK_ABOUT_TODAY',
+  coach_follow_up: 'ENABLE_AI_COACH',
 }
 
 export function getPromptContract(taskType: TaskType): PromptContract {
@@ -47,6 +56,7 @@ export function getResponseSchemaName(taskType: TaskType): string {
     rewrite_daily_brief: 'DailyBriefRewriteResponse',
     explain_score: 'ExplainScoreResponse',
     ask_about_today: 'AskAboutTodayResponse',
+    coach_follow_up: 'CoachFollowUpResponse',
   }[taskType]
 }
 
@@ -99,7 +109,7 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
       },
     }
   }
-  return {
+  if (taskType === 'ask_about_today') return {
     type: 'object',
     additionalProperties: false,
     required: ['headline', 'summary', 'primaryFocus', 'factualBasis', 'suggestedPrompts', 'sourceReferences'],
@@ -121,6 +131,38 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
           properties: { label: commonString, sourceReference: commonString },
         },
       },
+      suggestedPrompts: { type: 'array', items: commonString },
+      confidenceNote: commonString,
+      sourceReferences: sourceReferencesSchema(),
+    },
+  }
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['headline', 'summary', 'factualBasis', 'interpretations', 'suggestedPrompts', 'sourceReferences'],
+    properties: {
+      headline: commonString,
+      summary: commonString,
+      factualBasis: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['label', 'sourceReference'],
+          properties: { label: commonString, sourceReference: commonString },
+        },
+      },
+      interpretations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['statement', 'confidence'],
+          properties: { statement: commonString, confidence: { type: 'string', enum: ['high', 'moderate', 'low'] } },
+        },
+      },
+      primaryAction: primaryActionSchema(),
+      clarificationQuestion: commonString,
       suggestedPrompts: { type: 'array', items: commonString },
       confidenceNote: commonString,
       sourceReferences: sourceReferencesSchema(),

@@ -39,7 +39,7 @@ export function buildFallback(taskType: TaskType, context: ContextEnvelope): AIR
     }
   }
 
-  return {
+  if (taskType === 'ask_about_today') return {
     headline: briefHeadline,
     summary: briefSummary,
     primaryFocus: { title: actionTitle, detail: actionDetail },
@@ -48,6 +48,24 @@ export function buildFallback(taskType: TaskType, context: ContextEnvelope): AIR
       'Why is this my focus today?',
       'What is one simple action I can take?',
       'What data is missing from my baseline?',
+    ],
+    confidenceNote: context.confidenceNotes[0] ?? FALLBACK_COPY,
+    sourceReferences: references,
+  }
+
+  return {
+    headline: 'Your health context is still available.',
+    summary: 'Nuraa’s conversational guidance is temporarily unavailable. Here is what matters most today.',
+    factualBasis: references.slice(0, 2).map((sourceReference) => ({ label: sourceReference, sourceReference })),
+    interpretations: [{
+      statement: 'This response uses deterministic Nuraa context while conversational guidance is unavailable.',
+      confidence: 'moderate' as const,
+    }],
+    primaryAction: { title: actionTitle, detail: actionDetail },
+    suggestedPrompts: [
+      'What should I prioritise today?',
+      'Why is this my focus?',
+      'What data is missing?',
     ],
     confidenceNote: context.confidenceNotes[0] ?? FALLBACK_COPY,
     sourceReferences: references,

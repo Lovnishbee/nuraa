@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { DesktopHeader } from '@/components/app/DesktopHeader'
 import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
+import { getCoachEligibility } from '@/services/coachService'
 import { getDashboardSummary } from '@/services/intelligence'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
@@ -42,6 +43,7 @@ export function DashboardPage() {
   const user = useAuthStore((state) => state.user)!
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
   const dashboard = useQuery({ queryKey: ['dashboard-intelligence', user.id], queryFn: () => getDashboardSummary(user.id) })
+  const coachEligibility = useQuery({ queryKey: ['coach-eligibility', user.id], queryFn: getCoachEligibility })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const greeting = getTimeOfDayGreeting(getCurrentDate(), profile.data?.profile.timezone)
   const score = dashboard.data?.score
@@ -51,6 +53,7 @@ export function DashboardPage() {
   const scoreStatus = queryStatus(dashboard.isLoading, dashboard.isError, Boolean(score))
   const signalStatus = queryStatus(dashboard.isLoading, dashboard.isError, Boolean(signal))
   const trendValues = dashboard.data?.scoreHistory.map((item) => item.total_score ?? 70) ?? []
+  const showCoachActions = Boolean(coachEligibility.data?.internalEnabled && coachEligibility.data.internalConsentGranted && coachEligibility.data.coachEnabled)
 
   return (
     <DashboardLayout>
@@ -74,10 +77,11 @@ export function DashboardPage() {
             primaryDriver={score?.primary_driver}
             limitingFactor={score?.limiting_factor}
             hasBaseline={Boolean(score)}
+            coachActionHref={showCoachActions ? '/app/coach?action=explain_score' : undefined}
             status={scoreStatus}
             onRetry={() => void dashboard.refetch()}
           />
-          <DailyBriefCard brief={brief} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(brief))} onRetry={() => void dashboard.refetch()} />
+          <DailyBriefCard brief={brief} coachActionHref={showCoachActions ? '/app/coach?action=ask_today' : undefined} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(brief))} onRetry={() => void dashboard.refetch()} />
         </section>
 
         <section>

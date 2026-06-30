@@ -1,13 +1,14 @@
 import { z } from 'zod'
 
-export const TaskTypeSchema = z.enum(['rewrite_daily_brief', 'explain_score', 'ask_about_today'])
-export const EntryPointSchema = z.enum(['internal_dev', 'future_dashboard', 'future_coach'])
+export const TaskTypeSchema = z.enum(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up'])
+export const EntryPointSchema = z.enum(['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_ask_today', 'dashboard_score', 'coach_home', 'coach_follow_up'])
 export const DetailLevelSchema = z.enum(['concise', 'balanced', 'detailed'])
 export const SafetyRouteSchema = z.enum(['S0_routine_wellness', 'S1_medical_boundary', 'S2_timely_professional_review', 'S3_immediate_safety_or_emergency'])
 
 export const AIRequestInputSchema = z.object({
   taskType: TaskTypeSchema,
   entryPoint: EntryPointSchema,
+  conversationId: z.string().uuid().optional(),
   detailLevel: DetailLevelSchema.optional(),
   userInput: z.object({
     question: z.string().trim().min(1).max(500).optional(),
@@ -63,6 +64,24 @@ export const AskAboutTodayResponseSchema = z.object({
   sourceReferences: SourceReferencesSchema,
 }).strict()
 
+export const CoachFollowUpResponseSchema = z.object({
+  headline: z.string().min(1).max(140),
+  summary: z.string().min(1).max(800),
+  factualBasis: z.array(z.object({
+    label: z.string().min(1).max(160),
+    sourceReference: z.string().min(1).max(120),
+  }).strict()).max(2),
+  interpretations: z.array(z.object({
+    statement: z.string().min(1).max(240),
+    confidence: z.enum(['high', 'moderate', 'low']),
+  }).strict()).max(2),
+  primaryAction: PrimaryActionSchema.optional(),
+  clarificationQuestion: z.string().max(180).optional(),
+  suggestedPrompts: z.array(z.string().min(1).max(140)).max(3),
+  confidenceNote: z.string().max(280).optional(),
+  sourceReferences: SourceReferencesSchema,
+}).strict()
+
 export const TimeOfDaySchema = z.enum(['morning', 'afternoon', 'evening', 'night'])
 
 export const ContextEnvelopeSchema = z.object({
@@ -87,6 +106,12 @@ export const ContextEnvelopeSchema = z.object({
   confidenceNotes: z.array(z.string().max(200)).max(6),
   missingInformation: z.array(z.string().max(160)).max(8),
   sourceReferences: SourceReferencesSchema,
+  priorCoachMessages: z.array(z.object({
+    role: z.enum(['user', 'nuraa']),
+    messageType: z.string().max(80),
+    content: z.string().max(500),
+    createdAt: z.string().datetime(),
+  }).strict()).max(6).optional(),
   explanationPaths: z.array(z.record(z.unknown())).max(8),
   safetyConstraints: z.object({
     medicalAdviceProhibited: z.literal(true),
@@ -112,6 +137,7 @@ export const AIGatewayResponseSchema = z.object({
   taskType: TaskTypeSchema,
   status: z.enum(['completed', 'fallback', 'safety_routed', 'disabled']),
   fallbackUsed: z.boolean(),
+  conversationId: z.string().uuid().optional(),
   contextExpiresAt: z.string().datetime().optional(),
   payload: z.unknown(),
   safeMeta: z.object({

@@ -2,6 +2,8 @@
 
 Phase 4A is internal-only. It does not expose a public AI Coach, dashboard AI entry point, streaming UI, conversation persistence, or AI-driven writes. Deterministic Phase 3 intelligence remains the source of truth.
 
+Phase 4B adds a private-beta Coach on the same server-authoritative runtime. It remains allowlisted and disabled by default; Phase 4A `/dev/ai-runtime` behavior remains internal-dev only.
+
 ## Internal tester model
 
 - `public.ai_internal_testers` is the canonical allowlist.
@@ -22,6 +24,10 @@ ENABLE_AI_INTERNAL_TESTS=false
 ENABLE_AI_DAILY_BRIEF=false
 ENABLE_AI_SCORE_EXPLANATION=false
 ENABLE_AI_ASK_ABOUT_TODAY=false
+ENABLE_AI_COACH=false
+ENABLE_AI_COACH_DASHBOARD_ENTRY=false
+ENABLE_AI_COACH_HISTORY=false
+ENABLE_AI_COACH_FEEDBACK=false
 AI_INTERNAL_ACCESS_REQUIRED=true
 ```
 
@@ -71,5 +77,7 @@ Automated tests should use `FakeAIProvider` or explicit mocked providers. Real p
 
 - S1/S2/S3 safety routes suppress normal provider execution.
 - Provider/config/validation failures return deterministic fallback payloads.
-- Raw check-in reflections, prompt text, context envelopes, raw provider responses, secrets, and model names are not shown in the internal UI.
+- Raw check-in reflections, prompt text, context envelopes, raw provider responses, secrets, and model names are not shown in the UI.
 - Context reads are built from scoped Phase 3 records for the authenticated user only.
+- Phase 4B Coach conversations are Nuraa-owned records, not provider-managed conversation state.
+- Phase 4B does not diagnose, prescribe, create durable memory, or use OpenAI `previous_response_id`.

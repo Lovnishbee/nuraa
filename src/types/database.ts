@@ -108,6 +108,55 @@ export type ScoreFactor = {
   limiting_factor: string | null
   created_at: string
 }
+export type UserAIPreferences = {
+  id: string
+  user_id: string
+  ai_coaching_enabled: boolean
+  ai_coaching_policy_version: string | null
+  ai_coaching_consented_at: string | null
+  ai_coaching_disabled_at: string | null
+  response_detail: 'concise' | 'balanced' | 'detailed'
+  created_at: string
+  updated_at: string
+}
+export type CoachConversation = {
+  id: string
+  user_id: string
+  entry_point: string
+  initial_task_type: string
+  status: 'active' | 'paused' | 'resolved' | 'archived' | 'deleted'
+  deterministic_title: string | null
+  latest_context_envelope_id: string | null
+  last_context_at: string | null
+  last_active_at: string
+  archived_at: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+export type CoachMessage = {
+  id: string
+  conversation_id: string
+  user_id: string
+  sequence_number: number
+  role: 'user' | 'nuraa' | 'system'
+  task_type: string
+  message_type: 'coach_opening' | 'score_explanation' | 'coach_follow_up' | 'clarifying_question' | 'safety_response' | 'fallback'
+  content: string | null
+  structured_payload: unknown | null
+  source_references: unknown | null
+  validation_status: string
+  created_at: string
+}
+export type CoachFeedback = {
+  id: string
+  user_id: string
+  conversation_id: string
+  message_id: string
+  feedback_type: 'helpful' | 'not_helpful' | 'too_generic' | 'not_relevant' | 'too_much_detail' | 'not_enough_detail' | 'poor_timing'
+  reason: string | null
+  created_at: string
+}
 
 export type Database = {
   public: {
@@ -123,6 +172,10 @@ export type Database = {
       daily_briefs: { Row: DailyBriefRow; Insert: Omit<DailyBriefRow, 'id' | 'created_at' | 'updated_at' | 'source'> & Partial<Pick<DailyBriefRow, 'id' | 'created_at' | 'updated_at' | 'source'>>; Update: Partial<DailyBriefRow> }
       insight_events: { Row: InsightEvent; Insert: Omit<InsightEvent, 'id' | 'created_at'> & Partial<Pick<InsightEvent, 'id' | 'created_at'>>; Update: Partial<InsightEvent> }
       score_factors: { Row: ScoreFactor; Insert: Omit<ScoreFactor, 'id' | 'created_at'> & Partial<Pick<ScoreFactor, 'id' | 'created_at'>>; Update: Partial<ScoreFactor> }
+      user_ai_preferences: { Row: UserAIPreferences; Insert: Omit<UserAIPreferences, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<UserAIPreferences, 'id' | 'created_at' | 'updated_at'>>; Update: Partial<UserAIPreferences> }
+      coach_conversations: { Row: CoachConversation; Insert: Omit<CoachConversation, 'id' | 'created_at' | 'updated_at' | 'last_active_at' | 'status'> & Partial<Pick<CoachConversation, 'id' | 'created_at' | 'updated_at' | 'last_active_at' | 'status'>>; Update: Partial<CoachConversation> }
+      coach_messages: { Row: CoachMessage; Insert: Omit<CoachMessage, 'id' | 'created_at'> & Partial<Pick<CoachMessage, 'id' | 'created_at'>>; Update: Partial<CoachMessage> }
+      coach_feedback: { Row: CoachFeedback; Insert: Omit<CoachFeedback, 'id' | 'created_at'> & Partial<Pick<CoachFeedback, 'id' | 'created_at'>>; Update: Partial<CoachFeedback> }
       subscriptions: { Row: { id: string; user_id: string; plan_name: string; status: string; created_at: string; updated_at: string }; Insert: Record<string, unknown>; Update: Record<string, unknown> }
     }
   }

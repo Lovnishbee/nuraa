@@ -3,6 +3,7 @@ import type {
   AIGatewayResponseSchema,
   AIRequestInputSchema,
   AskAboutTodayResponseSchema,
+  CoachFollowUpResponseSchema,
   ContextEnvelopeSchema,
   DailyBriefRewriteResponseSchema,
   ExplainScoreResponseSchema,
@@ -11,8 +12,8 @@ import type {
 
 export const PHASE4A_SCHEMA_VERSION = 'phase4a.v1'
 
-export type TaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today'
-export type EntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach'
+export type TaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today' | 'coach_follow_up'
+export type EntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach' | 'dashboard_ask_today' | 'dashboard_score' | 'coach_home' | 'coach_follow_up'
 export type DetailLevel = 'concise' | 'balanced' | 'detailed'
 export type SafetyRoute = 'S0_routine_wellness' | 'S1_medical_boundary' | 'S2_timely_professional_review' | 'S3_immediate_safety_or_emergency'
 export type GatewayStatus = 'completed' | 'fallback' | 'safety_routed' | 'disabled'
@@ -23,8 +24,9 @@ export type ContextEnvelope = z.infer<typeof ContextEnvelopeSchema>
 export type DailyBriefRewriteResponse = z.infer<typeof DailyBriefRewriteResponseSchema>
 export type ExplainScoreResponse = z.infer<typeof ExplainScoreResponseSchema>
 export type AskAboutTodayResponse = z.infer<typeof AskAboutTodayResponseSchema>
+export type CoachFollowUpResponse = z.infer<typeof CoachFollowUpResponseSchema>
 export type PromptContract = z.infer<typeof PromptContractSchema>
-export type AIResponsePayload = DailyBriefRewriteResponse | ExplainScoreResponse | AskAboutTodayResponse
+export type AIResponsePayload = DailyBriefRewriteResponse | ExplainScoreResponse | AskAboutTodayResponse | CoachFollowUpResponse
 
 export type SafeMeta = AIGatewayResponse['safeMeta']
 
@@ -105,6 +107,13 @@ export type RuntimeDataSnapshot = {
   factors: Record<string, unknown> | null
   insights: Array<Record<string, unknown>>
   goals: Array<Record<string, unknown>>
+  coachMessages?: Array<{
+    role: 'user' | 'nuraa'
+    message_type: string
+    content: string | null
+    structured_payload: unknown | null
+    created_at: string
+  }>
 }
 
 export type PromptAssembly = {

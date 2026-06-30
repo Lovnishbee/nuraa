@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { DashboardCard } from './DashboardCard'
 import type { StatefulWidgetProps } from './types'
 
-export function NuraaScoreCard({ score = 0, category = 'Setting up your readiness baseline', reason, note, confidence, primaryDriver, limitingFactor, hasBaseline = false, status, onRetry }: StatefulWidgetProps & { score?: number | null; category?: string | null; reason?: string | null; note?: string | null; confidence?: number | null; primaryDriver?: string | null; limitingFactor?: string | null; hasBaseline?: boolean }) {
+export function NuraaScoreCard({ score = 0, category = 'Setting up your readiness baseline', reason, note, confidence, primaryDriver, limitingFactor, hasBaseline = false, coachActionHref, status, onRetry }: StatefulWidgetProps & { score?: number | null; category?: string | null; reason?: string | null; note?: string | null; confidence?: number | null; primaryDriver?: string | null; limitingFactor?: string | null; hasBaseline?: boolean; coachActionHref?: string }) {
   return (
     <DashboardCard title="Nuraa Score™" status={status} onRetry={onRetry} className="p-6" empty={{ title: 'Your readiness baseline is starting soon.', description: 'Complete your first check-in to begin tracking your daily health signals.' }}>
       <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-center">
@@ -26,9 +26,16 @@ export function NuraaScoreCard({ score = 0, category = 'Setting up your readines
           </div>
         )}
       </div>
-      <Button asChild variant={hasBaseline ? 'outline' : 'primary'} size="sm" className="mt-5">
-        <Link to={hasBaseline ? '/app/progress' : '/app/check-in'}><ArrowUpRight size={14} /> {hasBaseline ? 'View progress' : 'Start check-in'}</Link>
-      </Button>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Button asChild variant={hasBaseline ? 'outline' : 'primary'} size="sm">
+          <Link to={hasBaseline ? '/app/progress' : '/app/check-in'}><ArrowUpRight size={14} /> {hasBaseline ? 'View progress' : 'Start check-in'}</Link>
+        </Button>
+        {coachActionHref && hasBaseline && (
+          <Button asChild variant="secondary" size="sm">
+            <Link to={coachActionHref}>Explain my score</Link>
+          </Button>
+        )}
+      </div>
     </DashboardCard>
   )
 }

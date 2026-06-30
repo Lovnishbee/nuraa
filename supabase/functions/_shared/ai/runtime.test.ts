@@ -255,6 +255,148 @@ describe('AI gateway runtime hardening', () => {
     expect(data.ai_executions).toHaveLength(2)
     expect(data.ai_executions.at(-1)?.idempotency_key).toBeNull()
   })
+
+  it('blocks public Coach requests when AI Coach consent is missing before runtime writes', async () => {
+    const data = baseEnabledData({ aiPreferences: [] })
+    const provider = providerWithPayload(payloadForTask('ask_about_today'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForPublicCoachTask('ask_about_today'),
+      userId,
+      body: { taskType: 'ask_about_today', entryPoint: 'dashboard_ask_today' },
+      provider,
+    })
+
+    expect(result.response.status).toBe('disabled')
+    expect(provider.generateStructured).not.toHaveBeenCalled()
+    expect(data.coach_conversations).toHaveLength(0)
+    expect(data.context_requests).toHaveLength(0)
+    expect(data.ai_executions).toHaveLength(0)
+  })
+
+  it('creates a Coach conversation and Nuraa opening for dashboard Ask About Today', async () => {
+    const data = baseEnabledData()
+    const provider = providerWithPayload(payloadForTask('ask_about_today'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForPublicCoachTask('ask_about_today'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: { taskType: 'ask_about_today', entryPoint: 'dashboard_ask_today' },
+      provider,
+    })
+
+    expect(result.response.status).toBe('completed')
+    expect(result.response.conversationId).toBe(data.coach_conversations[0].id)
+    expect(data.coach_conversations).toHaveLength(1)
+    expect(data.coach_messages).toHaveLength(1)
+    expect(data.coach_messages[0]).toMatchObject({ role: 'nuraa', message_type: 'coach_opening', validation_status: 'valid' })
+    expect(provider.generateStructured).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists a user follow-up and validated Nuraa response with fresh context', async () => {
+    const data = baseEnabledData()
+    data.coach_conversations.push({
+      id: '00000000-0000-4000-8000-000000000701',
+      user_id: userId,
+      entry_point: 'coach_home',
+      initial_task_type: 'ask_about_today',
+      status: 'active',
+      deterministic_title: 'Today’s guidance',
+      deleted_at: null,
+      archived_at: null,
+    })
+    const provider = providerWithPayload(payloadForTask('coach_follow_up'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForPublicCoachTask('coach_follow_up'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: {
+        taskType: 'coach_follow_up',
+        entryPoint: 'coach_follow_up',
+        conversationId: '00000000-0000-4000-8000-000000000701',
+        userInput: { question: 'What should I prioritise?' },
+      },
+      provider,
+    })
+
+    expect(result.response.status).toBe('completed')
+    expect(data.context_requests).toHaveLength(1)
+    expect(data.context_envelopes).toHaveLength(1)
+    expect(data.coach_messages).toHaveLength(2)
+    expect(data.coach_messages[0]).toMatchObject({ role: 'user', content: 'What should I prioritise?' })
+    expect(data.coach_messages[1]).toMatchObject({ role: 'nuraa', message_type: 'coach_follow_up' })
+  })
+
+  it('blocks cross-user follow-up conversations', async () => {
+    const data = baseEnabledData()
+    data.coach_conversations.push({
+      id: '00000000-0000-4000-8000-000000000702',
+      user_id: '00000000-0000-4000-8000-000000009999',
+      entry_point: 'coach_home',
+      initial_task_type: 'ask_about_today',
+      status: 'active',
+      deterministic_title: 'Other user',
+      deleted_at: null,
+      archived_at: null,
+    })
+    const provider = providerWithPayload(payloadForTask('coach_follow_up'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForPublicCoachTask('coach_follow_up'),
+      userId,
+      body: {
+        taskType: 'coach_follow_up',
+        entryPoint: 'coach_follow_up',
+        conversationId: '00000000-0000-4000-8000-000000000702',
+        userInput: { question: 'What should I prioritise?' },
+      },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(404)
+    expect(provider.generateStructured).not.toHaveBeenCalled()
+    expect(data.coach_messages).toHaveLength(0)
+  })
+
+  it('suppresses normal provider execution and raw user-message persistence for S3 Coach turns', async () => {
+    const data = baseEnabledData()
+    data.coach_conversations.push({
+      id: '00000000-0000-4000-8000-000000000703',
+      user_id: userId,
+      entry_point: 'coach_home',
+      initial_task_type: 'ask_about_today',
+      status: 'active',
+      deterministic_title: 'Today’s guidance',
+      deleted_at: null,
+      archived_at: null,
+    })
+    const provider = providerWithPayload(payloadForTask('coach_follow_up'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForPublicCoachTask('coach_follow_up'),
+      userId,
+      body: {
+        taskType: 'coach_follow_up',
+        entryPoint: 'coach_follow_up',
+        conversationId: '00000000-0000-4000-8000-000000000703',
+        userInput: { question: 'I have chest pain and cannot breathe.' },
+      },
+      provider,
+    })
+
+    expect(result.response.status).toBe('safety_routed')
+    expect(provider.generateStructured).not.toHaveBeenCalled()
+    expect(data.coach_messages).toHaveLength(1)
+    expect(data.coach_messages[0]).toMatchObject({ role: 'nuraa', message_type: 'safety_response' })
+    expect(data.coach_messages[0].content).not.toContain('chest pain')
+  })
 })
 
 function envForTask(taskType: TaskType): Record<string, string | undefined> {
@@ -271,7 +413,17 @@ function envForTask(taskType: TaskType): Record<string, string | undefined> {
   }
 }
 
-function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } = {}): Record<string, Array<Record<string, unknown>>> {
+function envForPublicCoachTask(taskType: TaskType): Record<string, string | undefined> {
+  return {
+    ...envForTask(taskType),
+    ENABLE_AI_COACH: 'true',
+    ENABLE_AI_COACH_DASHBOARD_ENTRY: 'true',
+    ENABLE_AI_ASK_ABOUT_TODAY: taskType === 'ask_about_today' ? 'true' : undefined,
+    ENABLE_AI_SCORE_EXPLANATION: taskType === 'explain_score' ? 'true' : undefined,
+  }
+}
+
+function baseEnabledData(options: { testers?: Array<Record<string, unknown>>; aiPreferences?: Array<Record<string, unknown>> } = {}): Record<string, Array<Record<string, unknown>>> {
   return {
     ai_feature_flags: [
       { feature_name: 'AI_ENABLED', enabled: true },
@@ -279,12 +431,18 @@ function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } =
       { feature_name: 'ENABLE_AI_DAILY_BRIEF', enabled: true },
       { feature_name: 'ENABLE_AI_SCORE_EXPLANATION', enabled: true },
       { feature_name: 'ENABLE_AI_ASK_ABOUT_TODAY', enabled: true },
+      { feature_name: 'ENABLE_AI_COACH', enabled: true },
+      { feature_name: 'ENABLE_AI_COACH_DASHBOARD_ENTRY', enabled: true },
+      { feature_name: 'ENABLE_AI_COACH_HISTORY', enabled: true },
+      { feature_name: 'ENABLE_AI_COACH_FEEDBACK', enabled: true },
     ],
     ai_internal_testers: options.testers ?? [{ user_id: userId, enabled: true, consent_granted: true }],
+    user_ai_preferences: options.aiPreferences ?? [{ user_id: userId, ai_coaching_enabled: true, response_detail: 'balanced' }],
     prompt_contracts: [
       { id: 'contract-brief', name: 'rewrite_daily_brief', version: 'phase4a.v1', task_type: 'rewrite_daily_brief' },
       { id: 'contract-score', name: 'explain_score', version: 'phase4a.v1', task_type: 'explain_score' },
       { id: 'contract-today', name: 'ask_about_today', version: 'phase4a.v1', task_type: 'ask_about_today' },
+      { id: 'contract-coach', name: 'coach_follow_up', version: 'phase4a.v1', task_type: 'coach_follow_up' },
     ],
     ai_model_policies: [
       { id: 'policy-fast', alias: 'nuraa_fast_structured', model_env_key: 'AI_MODEL_FAST_STRUCTURED', status: 'active' },
@@ -305,6 +463,9 @@ function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } =
     context_items: [],
     ai_executions: [],
     ai_responses: [],
+    coach_conversations: [],
+    coach_messages: [],
+    coach_feedback: [],
   }
 }
 
@@ -333,12 +494,22 @@ function payloadForTask(taskType: TaskType): AIResponsePayload {
       sourceReferences: ['score:00000000-0000-4000-8000-000000000101', 'score_factors:00000000-0000-4000-8000-000000000401'],
     }
   }
-  return {
+  if (taskType === 'ask_about_today') return {
     headline: 'Focus on one steady action',
     summary: 'Today looks suitable for a calm, consistent routine.',
     primaryFocus: { title: 'Hydrate steadily', detail: 'Keep water nearby and check in later.' },
     factualBasis: [{ label: 'Daily brief', sourceReference: 'daily_brief:00000000-0000-4000-8000-000000000301' }],
     suggestedPrompts: ['Why is this my focus today?'],
+    confidenceNote: 'Based on deterministic Nuraa context.',
+    sourceReferences: ['daily_brief:00000000-0000-4000-8000-000000000301'],
+  }
+  return {
+    headline: 'Prioritise the simplest useful action',
+    summary: 'Based on today’s deterministic Nuraa context, a calm hydration focus is the most practical next step.',
+    factualBasis: [{ label: 'Daily brief', sourceReference: 'daily_brief:00000000-0000-4000-8000-000000000301' }],
+    interpretations: [{ statement: 'A small steady action fits today’s readiness.', confidence: 'moderate' }],
+    primaryAction: { title: 'Hydrate steadily', detail: 'Keep water nearby and check in later.' },
+    suggestedPrompts: ['Why this focus?', 'Should I take it lighter today?'],
     confidenceNote: 'Based on deterministic Nuraa context.',
     sourceReferences: ['daily_brief:00000000-0000-4000-8000-000000000301'],
   }
@@ -377,6 +548,7 @@ function fakeClient(data: Record<string, Array<Record<string, unknown>>>): Runti
             if (table === 'ai_executions' && !record.started_at) record.started_at = new Date('2026-06-29T14:00:00.000Z').toISOString()
             if (table === 'ai_responses' && !record.created_at) record.created_at = new Date('2026-06-29T14:00:00.000Z').toISOString()
             if (table === 'context_envelopes' && !record.expires_at) record.expires_at = new Date('2026-06-29T14:15:00.000Z').toISOString()
+            if (table === 'coach_messages' && !record.created_at) record.created_at = new Date('2026-06-29T14:00:00.000Z').toISOString()
             data[table] = [...(data[table] ?? []), record]
           }
           return builder

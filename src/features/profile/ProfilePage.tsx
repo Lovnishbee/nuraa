@@ -1,14 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, Camera, HeartPulse, Leaf, LogOut, MapPin, Mic, Pencil, ShieldCheck, Target, Utensils, Workflow } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarDays, Camera, HeartPulse, Leaf, LogOut, MapPin, Mic, Pencil, ShieldCheck, Sparkles, Target, Utensils, Workflow } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/IconBadge'
 import { logout } from '@/services/auth'
+import { getCoachEligibility, setCoachConsent, updateCoachResponseDetail } from '@/services/coachService'
 import { getProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 import type { HealthProfile, Profile, UserGoal, UserPermissions, UserPreferences } from '@/types/database'
+import type { AIDetailLevel } from '@/features/ai/types'
 import { cn } from '@/lib/utils'
 
 function initials(name?: string | null, email?: string | null) {
@@ -152,6 +155,7 @@ export function ProfilePage() {
   const user = useAuthStore((state) => state.user)!
   const navigate = useNavigate()
   const bundle = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
+  const coach = useQuery({ queryKey: ['coach-eligibility', user.id], queryFn: getCoachEligibility })
 
   if (bundle.isLoading) return <div className="p-10 text-sm text-forest/60">Loading your health profile…</div>
   if (bundle.error || !bundle.data) return <div className="p-10 text-sm text-red-700">Unable to load your health profile.</div>
@@ -198,6 +202,16 @@ export function ProfilePage() {
           <PermissionsGrid permissions={permissions} />
         </ProfileSection>
 
+        <ProfileSection title="AI Coach" description="Private-beta Coach controls for contextual wellness guidance." icon={Sparkles}>
+          <CoachControls
+            enabled={Boolean(coach.data?.coachEnabled)}
+            canUseCoach={Boolean(coach.data?.internalEnabled && coach.data.internalConsentGranted)}
+            detailLevel={coach.data?.responseDetail ?? 'balanced'}
+            onToggle={(enabled) => setCoachConsent(user.id, enabled, coach.data?.responseDetail ?? 'balanced').then(() => coach.refetch())}
+            onDetailChange={(detail) => updateCoachResponseDetail(user.id, detail).then(() => coach.refetch())}
+          />
+        </ProfileSection>
+
         <Card className="flex flex-col justify-between gap-6 p-5">
           <div className="flex gap-3">
             <IconBadge icon={Leaf} />
@@ -209,6 +223,36 @@ export function ProfilePage() {
           <Button variant="outline" onClick={signOut} className="w-full sm:w-fit"><LogOut size={16} /> Logout</Button>
         </Card>
       </div>
+    </div>
+  )
+}
+
+function CoachControls({ enabled, canUseCoach, detailLevel, onToggle, onDetailChange }: { enabled: boolean; canUseCoach: boolean; detailLevel: AIDetailLevel; onToggle: (enabled: boolean) => Promise<unknown>; onDetailChange: (detail: AIDetailLevel) => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false)
+  async function run(action: () => Promise<unknown>) {
+    setBusy(true)
+    try {
+      await action()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="space-y-4">
+      {!canUseCoach && <p className="rounded-2xl bg-canvas p-4 text-sm leading-6 text-ink/62">AI Coach is limited to approved private-beta testers for now.</p>}
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-forest/8 bg-canvas/70 p-4">
+        <div>
+          <p className="font-semibold text-forest">AI Coach</p>
+          <p className="mt-1 text-sm leading-5 text-ink/58">Use recent wellness context for general guidance. No diagnosis or prescriptions.</p>
+        </div>
+        <Button size="sm" variant={enabled ? 'primary' : 'outline'} disabled={!canUseCoach || busy} onClick={() => void run(() => onToggle(!enabled))}>{enabled ? 'On' : 'Off'}</Button>
+      </div>
+      <label className="block text-sm font-bold text-forest" htmlFor="profile-coach-detail">Response detail</label>
+      <select id="profile-coach-detail" value={detailLevel} disabled={!canUseCoach || busy} onChange={(event) => void run(() => onDetailChange(event.target.value as AIDetailLevel))} className="w-full rounded-2xl border border-forest/12 bg-white px-3 py-2 text-sm text-forest disabled:opacity-50">
+        <option value="concise">Concise</option>
+        <option value="balanced">Balanced</option>
+        <option value="detailed">Detailed</option>
+      </select>
     </div>
   )
 }

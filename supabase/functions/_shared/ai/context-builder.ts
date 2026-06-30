@@ -2,6 +2,7 @@ import { getLocalISODate, getTimeOfDay, addMinutes } from './date.ts'
 import { flagForTask } from './feature-flags.ts'
 import { stableJsonHash } from './hash.ts'
 import { createContextEnvelopeMetadata, createContextItems, createContextRequest } from './repositories/ai-runtime.repository.ts'
+import { getRecentCoachMessages } from './repositories/coach.repository.ts'
 import { getRuntimeDataSnapshot } from './repositories/intelligence.repository.ts'
 import { getUserCoachingPreferences } from './repositories/preferences.repository.ts'
 import { ContextEnvelopeSchema } from './schemas.ts'
@@ -15,6 +16,9 @@ export async function buildContextEnvelope(options: {
 }): Promise<ContextEnvelope> {
   const now = options.now ?? new Date()
   const snapshot = await getRuntimeDataSnapshot(options.client, options.userId)
+  const coachMessages = options.input.conversationId
+    ? await getRecentCoachMessages(options.client, options.input.conversationId, options.userId)
+    : []
   const preferences = await getUserCoachingPreferences(options.client, options.userId)
   const timezone = snapshot.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const expiresAt = addMinutes(now, 15).toISOString()
@@ -58,6 +62,12 @@ export async function buildContextEnvelope(options: {
     confidenceNotes: buildConfidenceNotes(snapshot),
     missingInformation: buildMissingInformation(snapshot),
     sourceReferences,
+    priorCoachMessages: coachMessages.map((message) => ({
+      role: message.role,
+      messageType: message.message_type,
+      content: visibleMessageContent(message).slice(0, 500),
+      createdAt: message.created_at,
+    })),
     explanationPaths: buildExplanationPaths(snapshot),
     safetyConstraints: {
       medicalAdviceProhibited: true,
@@ -88,6 +98,15 @@ export async function buildContextEnvelope(options: {
   })))
 
   return { ...parsed, id: metadata.id }
+}
+
+function visibleMessageContent(message: { content: string | null; structured_payload: unknown | null }) {
+  if (message.content?.trim()) return message.content.trim()
+  if (message.structured_payload && typeof message.structured_payload === 'object') {
+    const record = message.structured_payload as Record<string, unknown>
+    return [record.headline, record.summary].filter((value): value is string => typeof value === 'string').join(' ')
+  }
+  return ''
 }
 
 function buildSourceReferences(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>): string[] {

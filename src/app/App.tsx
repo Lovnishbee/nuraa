@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { AIRuntimeDevPage } from '@/features/ai/dev/AIRuntimeDevPage'
 import { DailyCheckInPage } from '@/features/checkin/DailyCheckInPage'
+import { CoachPage } from '@/features/coach/CoachPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
@@ -43,6 +44,7 @@ export function App() {
             <Route element={<AppLayout />}>
               <Route path="/app/dashboard" element={<DashboardPage />} />
               <Route path="/app/check-in" element={<DailyCheckInPage />} />
+              <Route path="/app/coach" element={<CoachPage />} />
               <Route path="/app/progress" element={<ProgressPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
               <Route path="/app/profile" element={<ProfilePage />} />

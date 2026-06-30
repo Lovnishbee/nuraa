@@ -1,4 +1,4 @@
-import { AskAboutTodayResponseSchema, DailyBriefRewriteResponseSchema, ExplainScoreResponseSchema } from './schemas.ts'
+import { AskAboutTodayResponseSchema, CoachFollowUpResponseSchema, DailyBriefRewriteResponseSchema, ExplainScoreResponseSchema } from './schemas.ts'
 import type { AIResponsePayload, ContextEnvelope, TaskType, ValidationResult } from './types.ts'
 
 const prohibitedPatterns = [
@@ -22,7 +22,9 @@ function parseTaskPayload(taskType: TaskType, payload: unknown): ValidationResul
     ? DailyBriefRewriteResponseSchema
     : taskType === 'explain_score'
       ? ExplainScoreResponseSchema
-      : AskAboutTodayResponseSchema
+      : taskType === 'ask_about_today'
+        ? AskAboutTodayResponseSchema
+        : CoachFollowUpResponseSchema
   const parsed = schema.safeParse(payload)
   if (!parsed.success) return { ok: false, errorCode: 'SCHEMA_VALIDATION_FAILED' }
   return { ok: true, payload: parsed.data as AIResponsePayload, schemaVersion: 'phase4a.v1' }
@@ -44,6 +46,13 @@ function validateBusinessRules(taskType: TaskType, payload: AIResponsePayload, c
     const ask = payload as Extract<AIResponsePayload, { suggestedPrompts: string[] }>
     if (ask.suggestedPrompts.length > 4) return { ok: false, errorCode: 'TOO_MANY_SUGGESTED_PROMPTS' }
     const basisReferences = ask.factualBasis.map((basis) => basis.sourceReference)
+    if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
+  }
+
+  if (taskType === 'coach_follow_up') {
+    const coach = payload as Extract<AIResponsePayload, { suggestedPrompts: string[]; factualBasis: Array<{ sourceReference: string }> }>
+    if (coach.suggestedPrompts.length > 3) return { ok: false, errorCode: 'TOO_MANY_SUGGESTED_PROMPTS' }
+    const basisReferences = coach.factualBasis.map((basis) => basis.sourceReference)
     if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
   }
 

@@ -14,7 +14,7 @@ function parseFocusItems(value: unknown): FocusItem[] {
     : []
 }
 
-export function DailyBriefCard({ brief, status, onRetry }: StatefulWidgetProps & { brief?: DailyBriefRow | null }) {
+export function DailyBriefCard({ brief, coachActionHref, status, onRetry }: StatefulWidgetProps & { brief?: DailyBriefRow | null; coachActionHref?: string }) {
   const focusItems = parseFocusItems(brief?.focus_items)
   const hasBrief = Boolean(brief)
   return (
@@ -30,9 +30,16 @@ export function DailyBriefCard({ brief, status, onRetry }: StatefulWidgetProps &
           <p className="text-sm font-semibold text-white">{hasBrief ? (brief?.insight ?? 'Your daily signal has been processed.') : 'Your first few check-ins help build your readiness baseline.'}</p>
           <p className="mt-1 text-sm leading-6 text-white/72">{focusItems[0]?.description ?? 'Personalised rule-based briefs become richer as more signals are collected.'}</p>
         </div>
-        <Button asChild variant="secondary" size="sm" className="bg-white text-forest hover:bg-sage">
-          <Link to={hasBrief ? '/app/reports' : '/app/check-in'}>{hasBrief ? 'View insights' : 'Start check-in'}</Link>
-        </Button>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <Button asChild variant="secondary" size="sm" className="bg-white text-forest hover:bg-sage">
+            <Link to={hasBrief ? '/app/reports' : '/app/check-in'}>{hasBrief ? 'View insights' : 'Start check-in'}</Link>
+          </Button>
+          {coachActionHref && hasBrief && (
+            <Button asChild variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white">
+              <Link to={coachActionHref}>Ask about today</Link>
+            </Button>
+          )}
+        </div>
       </div>
     </DashboardCard>
   )
