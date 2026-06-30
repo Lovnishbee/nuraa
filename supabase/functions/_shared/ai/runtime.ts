@@ -29,19 +29,12 @@ export async function handleAIGatewayRequest(options: {
   if (!parsed.ok) return errorResponse(400, 'invalid-request', 'rewrite_daily_brief', parsed.errorCode)
   const input = parsed.input
   const requestId = crypto.randomUUID()
+  if (input.entryPoint !== 'internal_dev') {
+    return disabledResponse(requestId, input.taskType)
+  }
   const featureAccess = await evaluateFeatureAccess({ client: options.client, env: options.env, userId: options.userId, input })
   if (!featureAccess.enabled) {
-    return {
-      httpStatus: 200,
-      response: safeResponse({
-        requestId,
-        taskType: input.taskType,
-        status: 'disabled',
-        fallbackUsed: true,
-        payload: { message: 'AI runtime is disabled for this request.' },
-        safeMeta: { responseSchemaVersion: 'phase4a.v1' },
-      }),
-    }
+    return disabledResponse(requestId, input.taskType)
   }
 
   const runtimeConfig = getRuntimeConfig(options.env)
@@ -56,8 +49,9 @@ export async function handleAIGatewayRequest(options: {
     return errorResponse(429, requestId, input.taskType, 'RATE_LIMIT_EXCEEDED')
   }
 
-  const idempotent = await findIdempotentResponse(options.client, { userId: options.userId, taskType: input.taskType, idempotencyKey: input.idempotencyKey })
-  if (idempotent) {
+  const idempotent = await findIdempotentResponse(options.client, { userId: options.userId, taskType: input.taskType, idempotencyKey: input.idempotencyKey, now: options.now })
+  const auditIdempotencyKey = idempotent?.state === 'expired' ? undefined : input.idempotencyKey
+  if (idempotent?.state === 'found') {
     return {
       httpStatus: 200,
       response: safeResponse({
@@ -83,7 +77,7 @@ export async function handleAIGatewayRequest(options: {
       status: 'safety_routed',
       safetyRoute: safety.route,
       fallbackUsed: true,
-      idempotencyKey: input.idempotencyKey,
+      idempotencyKey: auditIdempotencyKey,
       requestHash,
     })
     await finishAuditExecution(options.client, {
@@ -119,7 +113,7 @@ export async function handleAIGatewayRequest(options: {
     status: 'started',
     safetyRoute: safety.route,
     fallbackUsed: false,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: auditIdempotencyKey,
     requestHash,
   })
 
@@ -205,6 +199,23 @@ function errorResponse(httpStatus: number, requestId: string, taskType: AIGatewa
       fallbackUsed: true,
       payload: { errorCode, message: 'Unable to complete this AI runtime request safely.' },
       safeMeta: { responseSchemaVersion: 'phase4a.v1', schemaValidationPassed: false },
+    }),
+  }
+}
+
+function disabledResponse(requestId: string, taskType: AIGatewayResponse['taskType']): RuntimeResult {
+  return {
+    httpStatus: 200,
+    response: safeResponse({
+      requestId,
+      taskType,
+      status: 'disabled',
+      fallbackUsed: true,
+      payload: {
+        headline: 'This feature is not available.',
+        summary: 'Nuraa’s core health insights are still available.',
+      },
+      safeMeta: { responseSchemaVersion: 'phase4a.v1' },
     }),
   }
 }

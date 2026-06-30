@@ -56,13 +56,21 @@ export async function createContextItems(client: RuntimeSupabaseClient, contextE
   if (result.error) throw new Error(result.error.message)
 }
 
-export async function findIdempotentResponse(client: RuntimeSupabaseClient, values: { userId: string; taskType: TaskType; idempotencyKey?: string }) {
+export type IdempotentResponseLookup =
+  | { state: 'found'; execution: { id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null; context_envelope_id: string | null }; response: { schema_version: string; validated_payload: unknown } }
+  | { state: 'expired' }
+
+export async function findIdempotentResponse(client: RuntimeSupabaseClient, values: { userId: string; taskType: TaskType; idempotencyKey?: string; now?: Date }): Promise<IdempotentResponseLookup | null> {
   if (!values.idempotencyKey) return null
-  const execution = await client.from('ai_executions').select('id, status, fallback_used, safety_route, completed_at').eq('user_id', values.userId).eq('task_type', values.taskType).eq('idempotency_key', values.idempotencyKey).maybeSingle<{ id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null }>()
+  const execution = await client.from('ai_executions').select('id, status, fallback_used, safety_route, completed_at, context_envelope_id').eq('user_id', values.userId).eq('task_type', values.taskType).eq('idempotency_key', values.idempotencyKey).maybeSingle<{ id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null; context_envelope_id: string | null }>()
   if (execution.error || !execution.data?.completed_at) return null
+  if (execution.data.context_envelope_id) {
+    const envelope = await client.from('context_envelopes').select('expires_at').eq('id', execution.data.context_envelope_id).maybeSingle<{ expires_at: string }>()
+    if (envelope.error || !envelope.data || envelope.data.expires_at <= (values.now ?? new Date()).toISOString()) return { state: 'expired' }
+  }
   const response = await client.from('ai_responses').select('schema_version, validated_payload').eq('ai_execution_id', execution.data.id).maybeSingle<{ schema_version: string; validated_payload: unknown }>()
   if (response.error || !response.data) return null
-  return { execution: execution.data, response: response.data }
+  return { state: 'found', execution: execution.data, response: response.data }
 }
 
 export async function createExecution(client: RuntimeSupabaseClient, values: {

@@ -1,10 +1,12 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Bot, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { getAIInternalAccessStatus } from '@/services/aiGateway'
 import { runInternalAITask } from '../api'
 import type { AITaskType } from '../types'
 
@@ -17,6 +19,12 @@ const tasks: { label: string; value: AITaskType }[] = [
 export function AIRuntimeDevPage() {
   const [taskType, setTaskType] = useState<AITaskType>('rewrite_daily_brief')
   const [question, setQuestion] = useState('')
+  const access = useQuery({
+    queryKey: ['ai-internal-access'],
+    queryFn: getAIInternalAccessStatus,
+    retry: false,
+    staleTime: 30_000,
+  })
   const mutation = useMutation({
     mutationFn: () => runInternalAITask({
       taskType,
@@ -25,6 +33,14 @@ export function AIRuntimeDevPage() {
       idempotencyKey: `dev_${taskType}_${Date.now()}`,
     }),
   })
+
+  if (access.isLoading || access.isPending) {
+    return <div className="grid min-h-[60vh] place-items-center bg-canvas"><p className="text-sm font-semibold text-forest/60">Checking internal access…</p></div>
+  }
+
+  if (access.isError || !access.data.enabled || !access.data.consentGranted) {
+    return <Navigate to="/app/dashboard" replace />
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-5 py-5 sm:px-7 lg:px-10 lg:py-8">

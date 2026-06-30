@@ -26,3 +26,8 @@ export type AIGatewayResponse = {
     latencyMs?: number
   }
 }
+
+export type AIInternalAccessStatus = {
+  enabled: boolean
+  consentGranted: boolean
+}

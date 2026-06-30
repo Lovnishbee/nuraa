@@ -54,6 +54,32 @@ describe('feature flag evaluation', () => {
 
     expect(result).toEqual({ enabled: false, reason: 'not_internal_tester' })
   })
+
+  it('uses the task-specific feature flag for the requested task only', async () => {
+    const client = fakeClient({
+      ai_feature_flags: [
+        { feature_name: 'AI_ENABLED', enabled: true },
+        { feature_name: 'ENABLE_AI_INTERNAL_TESTS', enabled: true },
+        { feature_name: 'ENABLE_AI_DAILY_BRIEF', enabled: true },
+        { feature_name: 'ENABLE_AI_SCORE_EXPLANATION', enabled: false },
+      ],
+      ai_internal_testers: [{ user_id: 'user-1', enabled: true, consent_granted: true }],
+    })
+
+    await expect(evaluateFeatureAccess({
+      client,
+      env: { AI_ENABLED: 'true', ENABLE_AI_INTERNAL_TESTS: 'true', ENABLE_AI_DAILY_BRIEF: 'true', ENABLE_AI_SCORE_EXPLANATION: 'true' },
+      userId: 'user-1',
+      input: { taskType: 'rewrite_daily_brief', entryPoint: 'internal_dev' },
+    })).resolves.toEqual({ enabled: true })
+
+    await expect(evaluateFeatureAccess({
+      client,
+      env: { AI_ENABLED: 'true', ENABLE_AI_INTERNAL_TESTS: 'true', ENABLE_AI_DAILY_BRIEF: 'true', ENABLE_AI_SCORE_EXPLANATION: 'true' },
+      userId: 'user-1',
+      input: { taskType: 'explain_score', entryPoint: 'internal_dev' },
+    })).resolves.toEqual({ enabled: false, reason: 'task_disabled' })
+  })
 })
 
 function fakeClient(data: Record<string, Array<Record<string, unknown>>>): RuntimeSupabaseClient {
