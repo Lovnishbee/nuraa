@@ -22,12 +22,35 @@ describe('context builder privacy boundaries', () => {
       expect(call.filters.some((filter) => filter.column === scopeColumn && filter.value === userId)).toBe(true)
     }
   })
+
+  it('summarises seven-day score context without passing raw score rows', async () => {
+    const calls: Array<{ table: string; filters: Array<{ column: string; value: unknown }> }> = []
+    const client = fakeClient(calls)
+
+    const envelope = await buildContextEnvelope({
+      client,
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      input: { taskType: 'ask_about_today', entryPoint: 'coach_home' },
+    })
+
+    expect(envelope.schemaVersion).toBe('phase4b.v1')
+    expect(envelope.relevantTrends).toHaveLength(3)
+    expect(envelope.relevantTrends[0]).toMatchObject({ label: 'Current readiness' })
+    expect(JSON.stringify(envelope.relevantTrends)).toContain('Recent average')
+    expect(envelope.relevantTrends.every((trend) => !('id' in trend && !('label' in trend)))).toBe(true)
+  })
 })
 
 function fakeClient(calls: Array<{ table: string; filters: Array<{ column: string; value: unknown }> }>): RuntimeSupabaseClient {
   const data: Record<string, Array<Record<string, unknown>>> = {
     profiles: [{ id: userId, timezone: 'Asia/Kolkata', full_name: 'Tester' }],
-    nuraa_scores: [{ id: '00000000-0000-4000-8000-000000000101', user_id: userId, score_date: '2026-06-29', total_score: 78, readiness_category: 'Ready', confidence: 70 }],
+    nuraa_scores: [
+      { id: '00000000-0000-4000-8000-000000000101', user_id: userId, score_date: '2026-06-29', total_score: 78, readiness_category: 'Ready', confidence: 70 },
+      { id: '00000000-0000-4000-8000-000000000102', user_id: userId, score_date: '2026-06-28', total_score: 72, readiness_category: 'Ready', confidence: 70 },
+      { id: '00000000-0000-4000-8000-000000000103', user_id: userId, score_date: '2026-06-27', total_score: 69, readiness_category: 'Steady', confidence: 70 },
+      { id: '00000000-0000-4000-8000-000000000104', user_id: userId, score_date: '2026-06-26', total_score: 74, readiness_category: 'Ready', confidence: 70 },
+    ],
     health_signals: [{ id: '00000000-0000-4000-8000-000000000201', user_id: userId, signal_date: '2026-06-29', overall_signal_confidence: 70 }],
     daily_briefs: [{ id: '00000000-0000-4000-8000-000000000301', user_id: userId, brief_date: '2026-06-29', headline: 'Steady day', summary: 'Keep it simple.', focus_items: [] }],
     score_factors: [{ id: '00000000-0000-4000-8000-000000000401', user_id: userId, score_date: '2026-06-29', sleep_score: 80 }],

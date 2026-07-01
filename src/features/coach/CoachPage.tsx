@@ -12,7 +12,7 @@ import {
   getCoachEligibility,
   getCoachMessages,
   listCoachConversations,
-  payloadToCoachMessage,
+  reopenCoachConversation,
   sendCoachFollowUp,
   setCoachConsent,
   startAskAboutToday,
@@ -48,6 +48,8 @@ export function CoachPage() {
   const messages = useQuery({ queryKey: ['coach-messages', conversationId], queryFn: () => getCoachMessages(conversationId!), enabled: Boolean(conversationId) })
 
   const detailLevel = eligibility.data?.responseDetail ?? 'balanced'
+  const activeConversation = conversations.data?.find((conversation) => conversation.id === conversationId)
+  const conversationCanReceiveFollowUp = !activeConversation || activeConversation.status === 'active'
   const visibleMessages = useMemo(() => [...(messages.data ?? []), ...optimisticMessages], [messages.data, optimisticMessages])
 
   const startMutation = useMutation({
@@ -58,20 +60,21 @@ export function CoachPage() {
     },
     onSuccess: async (response) => {
       if (response.conversationId) setConversationId(response.conversationId)
-      setOptimisticMessages([payloadToCoachMessage(response)])
+      setOptimisticMessages([])
       await queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
       if (response.conversationId) await queryClient.invalidateQueries({ queryKey: ['coach-messages', response.conversationId] })
     },
   })
 
   const followUpMutation = useMutation({
-    mutationFn: ({ question }: { question: string }) => {
+    mutationFn: ({ question, requestKey }: { question: string; requestKey: string }) => {
       if (!conversationId) throw new Error('Start a Coach conversation first.')
-      return sendCoachFollowUp(conversationId, question, detailLevel)
+      return sendCoachFollowUp(conversationId, question, detailLevel, requestKey)
     },
-    onMutate: ({ question }) => {
+    onMutate: ({ question, requestKey }) => {
       const optimistic: CoachMessageView = {
-        id: `local_${crypto.randomUUID()}`,
+        id: `local_${requestKey}`,
+        localRequestKey: requestKey,
         role: 'user',
         messageType: 'coach_follow_up',
         content: question,
@@ -80,8 +83,8 @@ export function CoachPage() {
       }
       setOptimisticMessages((current) => [...current, optimistic])
     },
-    onSuccess: async (response) => {
-      setOptimisticMessages((current) => [...current, payloadToCoachMessage(response)])
+    onSuccess: async (_response, variables) => {
+      setOptimisticMessages((current) => current.filter((message) => message.localRequestKey !== variables.requestKey))
       await queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
       await queryClient.invalidateQueries({ queryKey: ['coach-messages', conversationId] })
     },
@@ -127,7 +130,7 @@ export function CoachPage() {
               message={message}
               conversationId={conversationId}
               userId={userId}
-              onPrompt={(prompt) => followUpMutation.mutate({ question: prompt })}
+              onPrompt={(prompt) => followUpMutation.mutate({ question: prompt, requestKey: `follow_${crypto.randomUUID()}` })}
             />
           ))}
           {(startMutation.error || followUpMutation.error) && (
@@ -138,9 +141,9 @@ export function CoachPage() {
         </div>
 
         <CoachComposer
-          disabled={!conversationId || followUpMutation.isPending || startMutation.isPending}
+          disabled={!conversationId || !conversationCanReceiveFollowUp || followUpMutation.isPending || startMutation.isPending}
           suggestedPrompts={lastSuggestedPrompts(visibleMessages)}
-          onSend={(question) => followUpMutation.mutate({ question })}
+          onSend={(question) => followUpMutation.mutate({ question, requestKey: `follow_${crypto.randomUUID()}` })}
         />
       </main>
 
@@ -154,6 +157,7 @@ export function CoachPage() {
             setOptimisticMessages([])
           }}
           onArchive={(id) => archiveCoachConversation(id).then(() => queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] }))}
+          onReopen={(id) => reopenCoachConversation(id).then(() => queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] }))}
           onDelete={(id) => deleteCoachConversation(id).then(() => {
             if (conversationId === id) setConversationId(null)
             return queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
@@ -307,29 +311,51 @@ function TodayContextRail({ detailLevel, onDetailChange, dashboard }: { detailLe
   )
 }
 
-function RecentConversations({ conversations, activeConversationId, onOpen, onArchive, onDelete }: { conversations: Array<{ id: string; deterministic_title: string | null; entry_point: string; last_active_at: string; archived_at: string | null }>; activeConversationId: string | null; onOpen: (id: string) => void; onArchive: (id: string) => void; onDelete: (id: string) => void }) {
+function RecentConversations({ conversations, activeConversationId, onOpen, onArchive, onReopen, onDelete }: { conversations: Array<{ id: string; deterministic_title: string | null; entry_point: string; last_active_at: string; archived_at: string | null; status: string }>; activeConversationId: string | null; onOpen: (id: string) => void; onArchive: (id: string) => void; onReopen: (id: string) => void; onDelete: (id: string) => void }) {
+  const visible = conversations.filter((conversation) => conversation.status !== 'deleted')
+  const active = visible.filter((conversation) => conversation.status !== 'archived')
+  const archived = visible.filter((conversation) => conversation.status === 'archived')
   return (
     <Card className="p-5">
       <p className="flex items-center gap-2 text-sm font-bold text-forest"><History size={16} /> Recent conversations</p>
       <div className="mt-4 space-y-2">
-        {conversations.length === 0 && <p className="rounded-2xl bg-canvas p-4 text-sm text-ink/60">Your Coach history will appear here after the first response.</p>}
-        {conversations.map((conversation) => (
-          <div key={conversation.id} className={cn('rounded-2xl border p-3', activeConversationId === conversation.id ? 'border-nuraa bg-sage/60' : 'border-forest/10 bg-white')}>
-            <button type="button" onClick={() => onOpen(conversation.id)} className="flex w-full items-start gap-2 text-left">
-              <MessageCircle size={16} className="mt-0.5 text-nuraa" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold text-forest">{conversation.deterministic_title ?? 'Coach conversation'}</span>
-                <span className="block text-xs text-ink/55">{conversation.entry_point.replaceAll('_', ' ')}</span>
-              </span>
-            </button>
-            <div className="mt-2 flex gap-2">
-              <button type="button" onClick={() => onArchive(conversation.id)} className="rounded-full p-1.5 text-ink/55 hover:bg-sage" aria-label="Archive conversation"><Archive size={14} /></button>
-              <button type="button" onClick={() => onDelete(conversation.id)} className="rounded-full p-1.5 text-ink/55 hover:bg-sage" aria-label="Delete conversation"><Trash2 size={14} /></button>
-            </div>
-          </div>
+        {visible.length === 0 && <p className="rounded-2xl bg-canvas p-4 text-sm text-ink/60">Your Coach history will appear here after the first response.</p>}
+        {active.map((conversation) => (
+          <ConversationHistoryRow key={conversation.id} conversation={conversation} activeConversationId={activeConversationId} onOpen={onOpen} onArchive={onArchive} onDelete={onDelete} />
         ))}
+        {archived.length > 0 ? (
+          <details className="pt-2">
+            <summary className="cursor-pointer text-xs font-bold uppercase tracking-[.12em] text-ink/55">Archived conversations</summary>
+            <div className="mt-2 space-y-2">
+              {archived.map((conversation) => (
+                <ConversationHistoryRow key={conversation.id} conversation={conversation} activeConversationId={activeConversationId} onOpen={onOpen} onArchive={onArchive} onReopen={onReopen} onDelete={onDelete} />
+              ))}
+            </div>
+          </details>
+        ) : null}
       </div>
     </Card>
+  )
+}
+
+function ConversationHistoryRow({ conversation, activeConversationId, onOpen, onArchive, onReopen, onDelete }: { conversation: { id: string; deterministic_title: string | null; entry_point: string; status: string }; activeConversationId: string | null; onOpen: (id: string) => void; onArchive: (id: string) => void; onReopen?: (id: string) => void; onDelete: (id: string) => void }) {
+  const archived = conversation.status === 'archived'
+  return (
+    <div className={cn('rounded-2xl border p-3', activeConversationId === conversation.id ? 'border-nuraa bg-sage/60' : 'border-forest/10 bg-white')}>
+      <button type="button" onClick={() => onOpen(conversation.id)} className="flex w-full items-start gap-2 text-left">
+        <MessageCircle size={16} className="mt-0.5 text-nuraa" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-forest">{conversation.deterministic_title ?? 'Coach conversation'}</span>
+          <span className="block text-xs text-ink/55">{archived ? 'Archived · read only' : conversation.entry_point.replaceAll('_', ' ')}</span>
+        </span>
+      </button>
+      <div className="mt-2 flex gap-2">
+        {archived
+          ? <button type="button" onClick={() => onReopen?.(conversation.id)} className="rounded-full px-2 py-1 text-xs font-semibold text-nuraa hover:bg-sage">Reopen</button>
+          : <button type="button" onClick={() => onArchive(conversation.id)} className="rounded-full p-1.5 text-ink/55 hover:bg-sage" aria-label="Archive conversation"><Archive size={14} /></button>}
+        <button type="button" onClick={() => onDelete(conversation.id)} className="rounded-full p-1.5 text-ink/55 hover:bg-sage" aria-label="Delete conversation"><Trash2 size={14} /></button>
+      </div>
+    </div>
   )
 }
 

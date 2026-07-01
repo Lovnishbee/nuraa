@@ -1,3 +1,4 @@
+import { PHASE4A_SCHEMA_VERSION, PHASE4B_SCHEMA_VERSION } from './types.ts'
 import type { PromptContract, TaskType } from './types.ts'
 
 const base = {
@@ -32,6 +33,9 @@ export const PROMPT_CONTRACTS: Record<TaskType, PromptContract> = {
   },
   coach_follow_up: {
     ...base,
+    version: PHASE4B_SCHEMA_VERSION,
+    contextContractVersion: PHASE4B_SCHEMA_VERSION,
+    outputSchemaVersion: PHASE4B_SCHEMA_VERSION,
     name: 'coach_follow_up',
     taskType: 'coach_follow_up',
     modelAlias: 'nuraa_coach_balanced',
@@ -62,16 +66,17 @@ export function getResponseSchemaName(taskType: TaskType): string {
 
 export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown> {
   const commonString = { type: 'string' }
+  const nullableString = { type: ['string', 'null'] }
   if (taskType === 'rewrite_daily_brief') {
     return {
       type: 'object',
       additionalProperties: false,
-      required: ['headline', 'summary', 'sourceReferences'],
+      required: ['headline', 'summary', 'primaryAction', 'confidenceNote', 'sourceReferences'],
       properties: {
         headline: commonString,
         summary: commonString,
         primaryAction: primaryActionSchema(),
-        confidenceNote: commonString,
+        confidenceNote: nullableString,
         sourceReferences: sourceReferencesSchema(),
       },
     }
@@ -80,7 +85,7 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
     return {
       type: 'object',
       additionalProperties: false,
-      required: ['headline', 'summary', 'factualBasis', 'interpretations', 'followUpQuestions', 'sourceReferences'],
+      required: ['headline', 'summary', 'factualBasis', 'interpretations', 'primaryAction', 'confidenceNote', 'followUpQuestions', 'sourceReferences'],
       properties: {
         headline: commonString,
         summary: commonString,
@@ -103,7 +108,7 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
           },
         },
         primaryAction: primaryActionSchema(),
-        confidenceNote: commonString,
+        confidenceNote: nullableString,
         followUpQuestions: { type: 'array', items: commonString },
         sourceReferences: sourceReferencesSchema(),
       },
@@ -112,7 +117,7 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
   if (taskType === 'ask_about_today') return {
     type: 'object',
     additionalProperties: false,
-    required: ['headline', 'summary', 'primaryFocus', 'factualBasis', 'suggestedPrompts', 'sourceReferences'],
+    required: ['headline', 'summary', 'primaryFocus', 'factualBasis', 'suggestedPrompts', 'confidenceNote', 'sourceReferences'],
     properties: {
       headline: commonString,
       summary: commonString,
@@ -132,14 +137,14 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
         },
       },
       suggestedPrompts: { type: 'array', items: commonString },
-      confidenceNote: commonString,
+      confidenceNote: nullableString,
       sourceReferences: sourceReferencesSchema(),
     },
   }
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['headline', 'summary', 'factualBasis', 'interpretations', 'suggestedPrompts', 'sourceReferences'],
+    required: ['headline', 'summary', 'factualBasis', 'interpretations', 'primaryAction', 'clarificationQuestion', 'suggestedPrompts', 'confidenceNote', 'sourceReferences'],
     properties: {
       headline: commonString,
       summary: commonString,
@@ -162,9 +167,9 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
         },
       },
       primaryAction: primaryActionSchema(),
-      clarificationQuestion: commonString,
+      clarificationQuestion: nullableString,
       suggestedPrompts: { type: 'array', items: commonString },
-      confidenceNote: commonString,
+      confidenceNote: nullableString,
       sourceReferences: sourceReferencesSchema(),
     },
   }
@@ -172,16 +177,20 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
 
 function primaryActionSchema() {
   return {
-    type: 'object',
+    type: ['object', 'null'],
     additionalProperties: false,
-    required: ['title'],
+    required: ['title', 'detail'],
     properties: {
       title: { type: 'string' },
-      detail: { type: 'string' },
+      detail: { type: ['string', 'null'] },
     },
   }
 }
 
 function sourceReferencesSchema() {
   return { type: 'array', items: { type: 'string' } }
+}
+
+export function getSchemaVersionForTask(taskType: TaskType): string {
+  return taskType === 'coach_follow_up' ? PHASE4B_SCHEMA_VERSION : PHASE4A_SCHEMA_VERSION
 }

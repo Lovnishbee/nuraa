@@ -41,6 +41,7 @@ function safetyFallbackForTask(taskType: TaskType, route: Exclude<SafetyRoute, '
     return {
       headline: 'Safety boundary',
       summary: message,
+      primaryAction: null,
       confidenceNote: 'Nuraa uses deterministic safety routing for this response.',
       sourceReferences: ['safety_policy:phase4a.v1'],
     }
@@ -51,6 +52,8 @@ function safetyFallbackForTask(taskType: TaskType, route: Exclude<SafetyRoute, '
       summary: message,
       factualBasis: [{ label: 'Safety policy route', sourceReference: 'safety_policy:phase4a.v1' }],
       interpretations: [{ statement: 'This is a safety routing response, not a diagnosis.', confidence: 'high' }],
+      primaryAction: null,
+      confidenceNote: 'Nuraa uses deterministic safety routing for this response.',
       followUpQuestions: [],
       sourceReferences: ['safety_policy:phase4a.v1'],
     }
@@ -61,6 +64,7 @@ function safetyFallbackForTask(taskType: TaskType, route: Exclude<SafetyRoute, '
     primaryFocus: { title: 'Use appropriate care', detail: message },
     factualBasis: [{ label: 'Safety policy route', sourceReference: 'safety_policy:phase4a.v1' }],
     suggestedPrompts: [],
+    confidenceNote: 'Nuraa uses deterministic safety routing for this response.',
     sourceReferences: ['safety_policy:phase4a.v1'],
   }
   return {
@@ -68,8 +72,10 @@ function safetyFallbackForTask(taskType: TaskType, route: Exclude<SafetyRoute, '
     summary: message,
     factualBasis: [{ label: 'Safety policy route', sourceReference: 'safety_policy:phase4a.v1' }],
     interpretations: [{ statement: 'This is a safety routing response, not a diagnosis.', confidence: 'high' }],
-    clarificationQuestion: undefined,
+    primaryAction: null,
+    clarificationQuestion: null,
     suggestedPrompts: [],
+    confidenceNote: 'Nuraa uses deterministic safety routing for this response.',
     sourceReferences: ['safety_policy:phase4a.v1'],
   }
 }

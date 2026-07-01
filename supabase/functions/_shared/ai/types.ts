@@ -11,6 +11,7 @@ import type {
 } from './schemas.ts'
 
 export const PHASE4A_SCHEMA_VERSION = 'phase4a.v1'
+export const PHASE4B_SCHEMA_VERSION = 'phase4b.v1'
 
 export type TaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today' | 'coach_follow_up'
 export type EntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach' | 'dashboard_ask_today' | 'dashboard_score' | 'coach_home' | 'coach_follow_up'
@@ -37,6 +38,7 @@ export type RuntimeSupabaseClient = {
     getUser: (jwt?: string) => Promise<{ data?: { user?: { id: string; email?: string | null } | null }; error?: { message?: string } | null }>
   }
   from: (table: string) => RuntimeQueryBuilder
+  rpc?: <T = unknown>(functionName: string, args?: Record<string, unknown>) => Promise<{ data: T | null; error: RuntimeDbError | null }>
 }
 
 export type RuntimeQueryBuilder = {
@@ -95,6 +97,7 @@ export type RuntimeDataSnapshot = {
   } | null
   score: Record<string, unknown> | null
   previousScore: Record<string, unknown> | null
+  scoreHistory: Array<Record<string, unknown>>
   signal: Record<string, unknown> | null
   brief: {
     id: string

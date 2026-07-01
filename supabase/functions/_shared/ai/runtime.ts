@@ -1,5 +1,5 @@
 import { getRuntimeConfig, readEnvValue } from './config.ts'
-import { getJsonSchemaForTask, getResponseSchemaName } from './contracts.ts'
+import { getJsonSchemaForTask, getResponseSchemaName, getSchemaVersionForTask } from './contracts.ts'
 import { buildContextEnvelope } from './context-builder.ts'
 import { buildFallback } from './fallback-service.ts'
 import { evaluateFeatureAccess } from './feature-flags.ts'
@@ -10,8 +10,8 @@ import { finishAuditExecution, startAuditExecution } from './audit-service.ts'
 import { findIdempotentResponse, getModelPolicy, getPromptContractRow } from './repositories/ai-runtime.repository.ts'
 import {
   createCoachConversation,
-  findActiveCoachConversation,
   getCoachConversationForUser,
+  pauseActiveCoachConversations,
   persistCoachNuraaMessage,
   persistCoachUserMessage,
   touchCoachConversationContext,
@@ -76,6 +76,7 @@ export async function handleAIGatewayRequest(options: {
         status: idempotent.execution.status === 'completed' ? 'completed' : 'fallback',
         fallbackUsed: idempotent.execution.fallback_used,
         payload: idempotent.response.validated_payload,
+        messageId: idempotent.execution.coach_message_id ?? undefined,
         safeMeta: { responseSchemaVersion: idempotent.response.schema_version, schemaValidationPassed: true },
       }),
     }
@@ -99,6 +100,19 @@ export async function handleAIGatewayRequest(options: {
       idempotencyKey: auditIdempotencyKey,
       requestHash,
     })
+    let messageId: string | undefined
+    if (conversation) {
+      const message = await persistCoachNuraaMessage(options.client, {
+        userId: options.userId,
+        conversationId: conversation.id,
+        taskType: input.taskType,
+        messageType: 'safety_response',
+        payload: safety.response,
+        validationStatus: 'safety_routed',
+        aiExecutionId: execution.id,
+      })
+      messageId = message.id
+    }
     await finishAuditExecution(options.client, {
       executionId: execution.id,
       taskType: input.taskType,
@@ -106,17 +120,8 @@ export async function handleAIGatewayRequest(options: {
       status: 'safety_routed',
       fallbackUsed: true,
       latencyMs: 0,
+      coachMessageId: messageId,
     })
-    if (conversation) {
-      await persistCoachNuraaMessage(options.client, {
-        userId: options.userId,
-        conversationId: conversation.id,
-        taskType: input.taskType,
-        messageType: 'safety_response',
-        payload: safety.response,
-        validationStatus: 'safety_routed',
-      })
-    }
     return {
       httpStatus: 200,
       response: safeResponse({
@@ -125,8 +130,9 @@ export async function handleAIGatewayRequest(options: {
         status: 'safety_routed',
         fallbackUsed: true,
         conversationId: conversation?.id,
+        messageId,
         payload: safety.response,
-        safeMeta: { responseSchemaVersion: 'phase4a.v1', promptContractVersion: promptContractRow.version, schemaValidationPassed: true, latencyMs: 0 },
+        safeMeta: { responseSchemaVersion: getSchemaVersionForTask(input.taskType), promptContractVersion: promptContractRow.version, schemaValidationPassed: true, latencyMs: 0 },
       }),
     }
   }
@@ -137,6 +143,7 @@ export async function handleAIGatewayRequest(options: {
       conversationId: conversation.id,
       taskType: input.taskType,
       content: input.userInput.question,
+      clientRequestKey: input.idempotencyKey,
     })
   }
   const context = await buildContextEnvelope({ client: options.client, userId: options.userId, input, now: options.now })
@@ -173,6 +180,18 @@ export async function handleAIGatewayRequest(options: {
     })
     const validation = validateAIResponse(input.taskType, providerResult.parsed, context)
     if (!validation.ok) throw new Error(validation.errorCode)
+    let messageId: string | undefined
+    if (conversation) {
+      const message = await persistCoachNuraaMessage(options.client, {
+        userId: options.userId,
+        conversationId: conversation.id,
+        taskType: input.taskType,
+        messageType: messageTypeForTask(input.taskType, false),
+        payload: validation.payload,
+        aiExecutionId: execution.id,
+      })
+      messageId = message.id
+    }
     await finishAuditExecution(options.client, {
       executionId: execution.id,
       taskType: input.taskType,
@@ -182,16 +201,8 @@ export async function handleAIGatewayRequest(options: {
       latencyMs: providerResult.latencyMs,
       inputTokens: providerResult.usage?.inputTokens,
       outputTokens: providerResult.usage?.outputTokens,
+      coachMessageId: messageId,
     })
-    if (conversation) {
-      await persistCoachNuraaMessage(options.client, {
-        userId: options.userId,
-        conversationId: conversation.id,
-        taskType: input.taskType,
-        messageType: messageTypeForTask(input.taskType, false),
-        payload: validation.payload,
-      })
-    }
     return {
       httpStatus: 200,
       response: safeResponse({
@@ -200,6 +211,7 @@ export async function handleAIGatewayRequest(options: {
         status: 'completed',
         fallbackUsed: false,
         conversationId: conversation?.id,
+        messageId,
         contextExpiresAt: context.expiresAt,
         payload: validation.payload,
         safeMeta: { responseSchemaVersion: validation.schemaVersion, promptContractVersion: prompt.promptContractVersion, schemaValidationPassed: true, latencyMs: providerResult.latencyMs },
@@ -207,6 +219,19 @@ export async function handleAIGatewayRequest(options: {
     }
   } catch (error) {
     const fallback = buildFallback(input.taskType, context)
+    let messageId: string | undefined
+    if (conversation) {
+      const message = await persistCoachNuraaMessage(options.client, {
+        userId: options.userId,
+        conversationId: conversation.id,
+        taskType: input.taskType,
+        messageType: messageTypeForTask(input.taskType, true),
+        payload: fallback,
+        validationStatus: 'fallback',
+        aiExecutionId: execution.id,
+      })
+      messageId = message.id
+    }
     await finishAuditExecution(options.client, {
       executionId: execution.id,
       taskType: input.taskType,
@@ -214,17 +239,8 @@ export async function handleAIGatewayRequest(options: {
       status: 'fallback',
       fallbackUsed: true,
       errorCode: error instanceof Error ? error.message : 'AI_PROVIDER_FAILED',
+      coachMessageId: messageId,
     })
-    if (conversation) {
-      await persistCoachNuraaMessage(options.client, {
-        userId: options.userId,
-        conversationId: conversation.id,
-        taskType: input.taskType,
-        messageType: messageTypeForTask(input.taskType, true),
-        payload: fallback,
-        validationStatus: 'fallback',
-      })
-    }
     return {
       httpStatus: 200,
       response: safeResponse({
@@ -233,9 +249,10 @@ export async function handleAIGatewayRequest(options: {
         status: 'fallback',
         fallbackUsed: true,
         conversationId: conversation?.id,
+        messageId,
         contextExpiresAt: context.expiresAt,
         payload: fallback,
-        safeMeta: { responseSchemaVersion: 'phase4a.v1', promptContractVersion: prompt.promptContractVersion, schemaValidationPassed: true },
+        safeMeta: { responseSchemaVersion: getSchemaVersionForTask(input.taskType), promptContractVersion: prompt.promptContractVersion, schemaValidationPassed: true },
       }),
     }
   }
@@ -248,12 +265,7 @@ async function resolveCoachConversation(
   existingConversation: CoachConversationRow | null,
 ): Promise<CoachConversationRow> {
   if (existingConversation) return existingConversation
-  const active = await findActiveCoachConversation(client, {
-    userId,
-    entryPoint: input.entryPoint,
-    taskType: input.taskType,
-  })
-  if (active) return active
+  await pauseActiveCoachConversations(client, userId, new Date().toISOString())
   return createCoachConversation(client, {
     userId,
     entryPoint: input.entryPoint,

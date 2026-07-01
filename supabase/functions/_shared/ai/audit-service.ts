@@ -1,5 +1,6 @@
 import { stableJsonHash } from './hash.ts'
 import { completeExecution, createExecution, persistValidatedResponse } from './repositories/ai-runtime.repository.ts'
+import { getSchemaVersionForTask } from './contracts.ts'
 import type { AIResponsePayload, RuntimeSupabaseClient, TaskType } from './types.ts'
 
 export async function startAuditExecution(client: RuntimeSupabaseClient, values: Parameters<typeof createExecution>[1]) {
@@ -16,6 +17,7 @@ export async function finishAuditExecution(client: RuntimeSupabaseClient, values
   inputTokens?: number
   outputTokens?: number
   errorCode?: string | null
+  coachMessageId?: string | null
 }) {
   await completeExecution(client, {
     executionId: values.executionId,
@@ -25,10 +27,11 @@ export async function finishAuditExecution(client: RuntimeSupabaseClient, values
     inputTokens: values.inputTokens,
     outputTokens: values.outputTokens,
     errorCode: values.errorCode,
+    coachMessageId: values.coachMessageId,
   })
   await persistValidatedResponse(client, {
     executionId: values.executionId,
-    schemaVersion: 'phase4a.v1',
+    schemaVersion: getSchemaVersionForTask(values.taskType),
     payload: values.payload,
     responseHash: await stableJsonHash(values.payload),
   })

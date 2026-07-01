@@ -12,12 +12,15 @@ export type CoachEligibility = {
 
 export type CoachMessageView = {
   id: string
+  localRequestKey?: string
   role: 'user' | 'nuraa' | 'system'
   messageType: CoachMessage['message_type']
   content: string
   payload: CoachResponsePayload | null
   createdAt: string
 }
+
+type CoachControlResponse<T = unknown> = { ok: true } & T
 
 export async function getCoachEligibility(): Promise<CoachEligibility> {
   const supabase = getSupabaseClient()
@@ -45,26 +48,15 @@ export async function getCoachPreferences(userId: string): Promise<UserAIPrefere
 }
 
 export async function setCoachConsent(userId: string, enabled: boolean, responseDetail: AIDetailLevel = 'balanced') {
-  const now = new Date().toISOString()
-  const result = await getSupabaseClient().from('user_ai_preferences').upsert({
-    user_id: userId,
-    ai_coaching_enabled: enabled,
-    ai_coaching_policy_version: enabled ? 'phase4b.v1' : null,
-    ai_coaching_consented_at: enabled ? now : null,
-    ai_coaching_disabled_at: enabled ? null : now,
-    response_detail: responseDetail,
-  }, { onConflict: 'user_id' }).select('*').single<UserAIPreferences>()
-  if (result.error) throw result.error
-  return result.data
+  void userId
+  const result = await invokeCoachControl<CoachControlResponse<{ preferences: UserAIPreferences }>>({ action: 'set_consent', enabled, responseDetail })
+  return result.preferences
 }
 
 export async function updateCoachResponseDetail(userId: string, responseDetail: AIDetailLevel) {
-  const result = await getSupabaseClient().from('user_ai_preferences')
-    .upsert({ user_id: userId, response_detail: responseDetail }, { onConflict: 'user_id' })
-    .select('*')
-    .single<UserAIPreferences>()
-  if (result.error) throw result.error
-  return result.data
+  void userId
+  const result = await invokeCoachControl<CoachControlResponse<{ preferences: UserAIPreferences }>>({ action: 'set_response_detail', responseDetail })
+  return result.preferences
 }
 
 export async function listCoachConversations(userId: string): Promise<CoachConversation[]> {
@@ -78,6 +70,11 @@ export async function listCoachConversations(userId: string): Promise<CoachConve
 }
 
 export async function getCoachMessages(conversationId: string): Promise<CoachMessageView[]> {
+  const conversation = await getSupabaseClient().from('coach_conversations')
+    .select('id, deleted_at, status')
+    .eq('id', conversationId)
+    .maybeSingle<{ id: string; deleted_at: string | null; status: string }>()
+  if (conversation.error || !conversation.data || conversation.data.deleted_at || conversation.data.status === 'deleted') return []
   const result = await getSupabaseClient().from('coach_messages')
     .select('*')
     .eq('conversation_id', conversationId)
@@ -113,35 +110,27 @@ export async function startCoachHome(detailLevel: AIDetailLevel): Promise<AIGate
   })
 }
 
-export async function sendCoachFollowUp(conversationId: string, question: string, detailLevel: AIDetailLevel): Promise<AIGatewayResponse> {
+export async function sendCoachFollowUp(conversationId: string, question: string, detailLevel: AIDetailLevel, idempotencyKey = `follow_${crypto.randomUUID()}`): Promise<AIGatewayResponse> {
   return invokeAIGateway({
     taskType: 'coach_follow_up',
     entryPoint: 'coach_follow_up',
     conversationId,
     detailLevel,
     userInput: { question },
-    idempotencyKey: `follow_${crypto.randomUUID()}`,
+    idempotencyKey,
   })
 }
 
 export async function archiveCoachConversation(conversationId: string) {
-  const now = new Date().toISOString()
-  const result = await getSupabaseClient().from('coach_conversations').update({
-    status: 'archived',
-    archived_at: now,
-    last_active_at: now,
-  }).eq('id', conversationId)
-  if (result.error) throw result.error
+  await invokeCoachControl({ action: 'archive', conversationId })
+}
+
+export async function reopenCoachConversation(conversationId: string) {
+  await invokeCoachControl({ action: 'reopen', conversationId })
 }
 
 export async function deleteCoachConversation(conversationId: string) {
-  const now = new Date().toISOString()
-  const result = await getSupabaseClient().from('coach_conversations').update({
-    status: 'deleted',
-    deleted_at: now,
-    last_active_at: now,
-  }).eq('id', conversationId)
-  if (result.error) throw result.error
+  await invokeCoachControl({ action: 'delete', conversationId })
 }
 
 export async function createCoachFeedback(values: {
@@ -150,25 +139,32 @@ export async function createCoachFeedback(values: {
   messageId: string
   feedbackType: CoachFeedback['feedback_type']
 }) {
-  const result = await getSupabaseClient().from('coach_feedback').insert({
-    user_id: values.userId,
-    conversation_id: values.conversationId,
-    message_id: values.messageId,
-    feedback_type: values.feedbackType,
+  void values.userId
+  await invokeCoachControl({
+    action: 'submit_feedback',
+    conversationId: values.conversationId,
+    messageId: values.messageId,
+    feedbackType: values.feedbackType,
   })
-  if (result.error) throw result.error
 }
 
 export function payloadToCoachMessage(response: AIGatewayResponse): CoachMessageView {
   const payload = response.payload && typeof response.payload === 'object' ? response.payload as CoachResponsePayload : null
   return {
-    id: response.requestId,
+    id: response.messageId ?? response.requestId,
     role: 'nuraa',
     messageType: response.status === 'safety_routed' ? 'safety_response' : response.fallbackUsed ? 'fallback' : response.taskType === 'explain_score' ? 'score_explanation' : response.taskType === 'ask_about_today' ? 'coach_opening' : 'coach_follow_up',
     content: payload ? [payload.headline, payload.summary].filter(Boolean).join('\n\n') : 'Nuraa guidance is unavailable.',
     payload,
     createdAt: new Date().toISOString(),
   }
+}
+
+async function invokeCoachControl<T = CoachControlResponse>(body: Record<string, unknown>): Promise<T> {
+  const result = await getSupabaseClient().functions.invoke<T>('coach-control', { body })
+  if (result.error) throw result.error
+  if (!result.data) throw new Error('Coach control returned no data.')
+  return result.data
 }
 
 function toCoachMessageView(message: CoachMessage): CoachMessageView {

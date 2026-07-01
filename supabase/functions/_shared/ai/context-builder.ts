@@ -26,7 +26,7 @@ export async function buildContextEnvelope(options: {
   const priorities = buildPriorities(snapshot)
   const envelope: ContextEnvelope = {
     id: crypto.randomUUID(),
-    schemaVersion: 'phase4a.v1',
+    schemaVersion: options.input.entryPoint === 'internal_dev' ? 'phase4a.v1' : 'phase4b.v1',
     taskType: options.input.taskType,
     createdAt: now.toISOString(),
     expiresAt,
@@ -48,11 +48,7 @@ export async function buildContextEnvelope(options: {
       dailyBriefSummary: snapshot.brief?.summary ?? null,
       signalConfidence: readNumber(snapshot.signal, 'overall_signal_confidence'),
     },
-    relevantTrends: [snapshot.score, snapshot.previousScore].filter(Boolean).map((score) => ({
-      date: readString(score, 'score_date'),
-      score: readNumber(score, 'total_score'),
-      category: readString(score, 'readiness_category'),
-    })),
+    relevantTrends: buildSevenDayTrendSummaries(snapshot),
     activePriorities: priorities.slice(0, 3),
     activeGoals: snapshot.goals.slice(0, 3).map((goal) => ({
       id: readString(goal, 'id'),
@@ -98,6 +94,56 @@ export async function buildContextEnvelope(options: {
   })))
 
   return { ...parsed, id: metadata.id }
+}
+
+function buildSevenDayTrendSummaries(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>): Array<Record<string, unknown>> {
+  const scores = snapshot.scoreHistory
+    .map((score) => ({
+      date: readString(score, 'score_date'),
+      score: readNumber(score, 'total_score'),
+      category: readString(score, 'readiness_category'),
+    }))
+    .filter((score): score is { date: string; score: number; category: string } => Boolean(score.date && typeof score.score === 'number'))
+
+  if (!scores.length) {
+    return [{ label: 'Limited data', summary: 'Nuraa does not have recent score history yet.', sourceReference: 'deterministic:nuraa' }]
+  }
+
+  const current = scores[0]
+  const previous = scores[1]
+  const summaries: Array<Record<string, unknown>> = [{
+    label: 'Current readiness',
+    summary: `Current score is ${current.score} (${current.category || 'category building'}).`,
+    sourceReference: snapshot.score ? `score:${readString(snapshot.score, 'id')}` : 'deterministic:nuraa',
+  }]
+
+  if (previous) {
+    const delta = current.score - previous.score
+    summaries.push({
+      label: 'Change from previous score',
+      summary: delta === 0 ? 'Score is unchanged from the previous recorded score.' : `Score is ${Math.abs(delta)} point${Math.abs(delta) === 1 ? '' : 's'} ${delta > 0 ? 'higher' : 'lower'} than the previous recorded score.`,
+      sourceReference: snapshot.score ? `score:${readString(snapshot.score, 'id')}` : 'deterministic:nuraa',
+    })
+  } else {
+    summaries.push({
+      label: 'Limited trend data',
+      summary: 'Nuraa needs more recent scores to compare direction reliably.',
+      sourceReference: 'deterministic:nuraa',
+    })
+  }
+
+  if (scores.length >= 3) {
+    const average = Math.round(scores.reduce((sum, item) => sum + item.score, 0) / scores.length)
+    const min = Math.min(...scores.map((item) => item.score))
+    const max = Math.max(...scores.map((item) => item.score))
+    summaries.push({
+      label: `${scores.length}-score baseline`,
+      summary: `Recent average is ${average}, with scores ranging from ${min} to ${max}.`,
+      sourceReference: snapshot.score ? `score:${readString(snapshot.score, 'id')}` : 'deterministic:nuraa',
+    })
+  }
+
+  return summaries.slice(0, 3)
 }
 
 function visibleMessageContent(message: { content: string | null; structured_payload: unknown | null }) {

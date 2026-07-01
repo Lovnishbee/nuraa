@@ -20,14 +20,14 @@ export const SourceReferencesSchema = z.array(z.string().min(1).max(120)).max(12
 
 export const PrimaryActionSchema = z.object({
   title: z.string().min(1).max(120),
-  detail: z.string().max(260).optional(),
+  detail: z.string().max(260).nullable(),
 }).strict()
 
 export const DailyBriefRewriteResponseSchema = z.object({
   headline: z.string().min(1).max(140),
   summary: z.string().min(1).max(700),
-  primaryAction: PrimaryActionSchema.optional(),
-  confidenceNote: z.string().max(280).optional(),
+  primaryAction: PrimaryActionSchema.nullable(),
+  confidenceNote: z.string().max(280).nullable(),
   sourceReferences: SourceReferencesSchema,
 }).strict()
 
@@ -42,8 +42,8 @@ export const ExplainScoreResponseSchema = z.object({
     statement: z.string().min(1).max(240),
     confidence: z.enum(['high', 'moderate', 'low']),
   }).strict()).max(4),
-  primaryAction: PrimaryActionSchema.optional(),
-  confidenceNote: z.string().max(280).optional(),
+  primaryAction: PrimaryActionSchema.nullable(),
+  confidenceNote: z.string().max(280).nullable(),
   followUpQuestions: z.array(z.string().min(1).max(140)).max(3),
   sourceReferences: SourceReferencesSchema,
 }).strict()
@@ -60,7 +60,7 @@ export const AskAboutTodayResponseSchema = z.object({
     sourceReference: z.string().min(1).max(120),
   }).strict()).max(6),
   suggestedPrompts: z.array(z.string().min(1).max(140)).max(4),
-  confidenceNote: z.string().max(280).optional(),
+  confidenceNote: z.string().max(280).nullable(),
   sourceReferences: SourceReferencesSchema,
 }).strict()
 
@@ -75,10 +75,10 @@ export const CoachFollowUpResponseSchema = z.object({
     statement: z.string().min(1).max(240),
     confidence: z.enum(['high', 'moderate', 'low']),
   }).strict()).max(2),
-  primaryAction: PrimaryActionSchema.optional(),
-  clarificationQuestion: z.string().max(180).optional(),
+  primaryAction: PrimaryActionSchema.nullable(),
+  clarificationQuestion: z.string().max(180).nullable(),
   suggestedPrompts: z.array(z.string().min(1).max(140)).max(3),
-  confidenceNote: z.string().max(280).optional(),
+  confidenceNote: z.string().max(280).nullable(),
   sourceReferences: SourceReferencesSchema,
 }).strict()
 
@@ -86,7 +86,7 @@ export const TimeOfDaySchema = z.enum(['morning', 'afternoon', 'evening', 'night
 
 export const ContextEnvelopeSchema = z.object({
   id: z.string().uuid(),
-  schemaVersion: z.literal('phase4a.v1'),
+  schemaVersion: z.enum(['phase4a.v1', 'phase4b.v1']),
   taskType: TaskTypeSchema,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
@@ -111,7 +111,7 @@ export const ContextEnvelopeSchema = z.object({
     messageType: z.string().max(80),
     content: z.string().max(500),
     createdAt: z.string().datetime(),
-  }).strict()).max(6).optional(),
+  }).strict()).max(6),
   explanationPaths: z.array(z.record(z.unknown())).max(8),
   safetyConstraints: z.object({
     medicalAdviceProhibited: z.literal(true),
@@ -122,11 +122,11 @@ export const ContextEnvelopeSchema = z.object({
 
 export const PromptContractSchema = z.object({
   name: TaskTypeSchema,
-  version: z.literal('phase4a.v1'),
+  version: z.enum(['phase4a.v1', 'phase4b.v1']),
   taskType: TaskTypeSchema,
   safetyPolicyVersion: z.literal('phase4a.v1'),
-  contextContractVersion: z.literal('phase4a.v1'),
-  outputSchemaVersion: z.literal('phase4a.v1'),
+  contextContractVersion: z.enum(['phase4a.v1', 'phase4b.v1']),
+  outputSchemaVersion: z.enum(['phase4a.v1', 'phase4b.v1']),
   maxOutputTokens: z.number().int().positive(),
   modelAlias: z.string().min(1),
   checksum: z.string().min(1),
@@ -138,6 +138,7 @@ export const AIGatewayResponseSchema = z.object({
   status: z.enum(['completed', 'fallback', 'safety_routed', 'disabled']),
   fallbackUsed: z.boolean(),
   conversationId: z.string().uuid().optional(),
+  messageId: z.string().uuid().optional(),
   contextExpiresAt: z.string().datetime().optional(),
   payload: z.unknown(),
   safeMeta: z.object({

@@ -3,7 +3,7 @@ import type { RuntimeDataSnapshot, RuntimeSupabaseClient } from '../types.ts'
 export async function getRuntimeDataSnapshot(client: RuntimeSupabaseClient, userId: string): Promise<RuntimeDataSnapshot> {
   const [profile, scores, signal, brief, factors, insights, goals] = await Promise.all([
     client.from('profiles').select('id, timezone, full_name').eq('id', userId).maybeSingle<RuntimeDataSnapshot['profile']>(),
-    client.from('nuraa_scores').select('*').eq('user_id', userId).order('score_date', { ascending: false }).limit(2),
+    client.from('nuraa_scores').select('*').eq('user_id', userId).order('score_date', { ascending: false }).limit(7),
     client.from('health_signals').select('*').eq('user_id', userId).order('signal_date', { ascending: false }).limit(1).maybeSingle<Record<string, unknown>>(),
     client.from('daily_briefs').select('*').eq('user_id', userId).order('brief_date', { ascending: false }).limit(1).maybeSingle<RuntimeDataSnapshot['brief']>(),
     client.from('score_factors').select('*').eq('user_id', userId).order('score_date', { ascending: false }).limit(1).maybeSingle<Record<string, unknown>>(),
@@ -19,6 +19,7 @@ export async function getRuntimeDataSnapshot(client: RuntimeSupabaseClient, user
     profile: profile.data,
     score: scoreRows[0] ?? null,
     previousScore: scoreRows[1] ?? null,
+    scoreHistory: scoreRows,
     signal: signal.data,
     brief: brief.data,
     factors: factors.data,

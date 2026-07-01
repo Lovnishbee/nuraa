@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { getJsonSchemaForTask } from '../contracts.ts'
 import { OpenAIResponsesProvider } from './openai-responses.provider.ts'
 
 describe('OpenAIResponsesProvider', () => {
@@ -9,6 +10,10 @@ describe('OpenAIResponsesProvider', () => {
       expect(body.tool_choice).toBe('none')
       expect(body.tools).toEqual([])
       expect(body.safety_identifier).toBe('hashed-user')
+      const text = body.text as Record<string, unknown>
+      const format = text.format as Record<string, unknown>
+      expect(format.strict).toBe(true)
+      expect(format.schema).toMatchObject({ type: 'object', additionalProperties: false })
       return new Response(JSON.stringify({
         id: 'resp_123',
         output_text: JSON.stringify({ headline: 'Ready', summary: 'Structured output', sourceReferences: ['deterministic:nuraa'] }),
@@ -21,7 +26,7 @@ describe('OpenAIResponsesProvider', () => {
       instructions: 'Rules',
       input: { task: 'test' },
       responseSchemaName: 'DailyBriefRewriteResponse',
-      responseSchema: { type: 'object' },
+      responseSchema: getJsonSchemaForTask('rewrite_daily_brief'),
       maxOutputTokens: 100,
       safetyIdentifier: 'hashed-user',
     })

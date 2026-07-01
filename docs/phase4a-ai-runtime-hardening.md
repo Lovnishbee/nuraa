@@ -69,6 +69,8 @@ npm run build
 
 CI sets AI env values to disabled/fake defaults. Tests must not require OpenAI credentials or make real OpenAI network calls.
 
+Phase 4B adds the `coach-control` Edge Function for consent, response-detail, lifecycle, and feedback writes. Browser clients keep read-only table access for Coach records; controlled mutations derive the user from the authenticated JWT and run server-side.
+
 ## FakeAIProvider
 
 Automated tests should use `FakeAIProvider` or explicit mocked providers. Real provider checks belong in controlled preview/staging smoke tests only.

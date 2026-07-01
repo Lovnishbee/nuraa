@@ -139,6 +139,8 @@ export type CoachMessage = {
   conversation_id: string
   user_id: string
   sequence_number: number
+  ai_execution_id: string | null
+  client_request_key: string | null
   role: 'user' | 'nuraa' | 'system'
   task_type: string
   message_type: 'coach_opening' | 'score_explanation' | 'coach_follow_up' | 'clarifying_question' | 'safety_response' | 'fallback'

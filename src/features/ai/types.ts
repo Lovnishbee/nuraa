@@ -19,6 +19,7 @@ export type AIGatewayResponse = {
   status: 'completed' | 'fallback' | 'safety_routed' | 'disabled'
   fallbackUsed: boolean
   conversationId?: string
+  messageId?: string
   contextExpiresAt?: string
   payload: unknown
   safeMeta: {
@@ -37,12 +38,13 @@ export type AIInternalAccessStatus = {
 export type CoachResponsePayload = {
   headline?: string
   summary?: string
-  primaryFocus?: { title: string; detail?: string }
-  primaryAction?: { title: string; detail?: string }
+  primaryFocus?: { title: string; detail: string }
+  primaryAction?: { title: string; detail: string | null } | null
   factualBasis?: Array<{ label: string; sourceReference: string }>
   interpretations?: Array<{ statement: string; confidence: 'high' | 'moderate' | 'low' }>
   suggestedPrompts?: string[]
   followUpQuestions?: string[]
-  confidenceNote?: string
+  clarificationQuestion?: string | null
+  confidenceNote?: string | null
   sourceReferences?: string[]
 }

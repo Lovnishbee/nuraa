@@ -3,13 +3,14 @@ import type { AIRequestInput, ContextEnvelope, PromptAssembly } from './types.ts
 
 export function assemblePrompt(input: AIRequestInput, context: ContextEnvelope): PromptAssembly {
   const contract = getPromptContract(input.taskType)
+  const { priorCoachMessages: boundedPriorMessages, ...contextWithoutPriorMessages } = context
   const instructions = [
     systemIdentityAndRules(),
     medicalBoundaries(),
     taskContract(input.taskType),
-    `TRUSTED_CONTEXT_ENVELOPE:\n${JSON.stringify(context)}`,
+    `TRUSTED_CONTEXT_ENVELOPE:\n${JSON.stringify(contextWithoutPriorMessages)}`,
     input.taskType === 'coach_follow_up'
-      ? `TRUSTED_PRIOR_CONVERSATION_MESSAGES:\n${JSON.stringify(context.priorCoachMessages ?? [])}`
+      ? `TRUSTED_PRIOR_CONVERSATION_MESSAGES:\n${JSON.stringify(boundedPriorMessages)}`
       : '',
     `OUTPUT_CONTRACT:\nReturn only valid JSON for ${getResponseSchemaName(input.taskType)}. Do not include markdown.`,
     `UNTRUSTED_USER_INPUT:\n${JSON.stringify(input.userInput ?? {})}`,

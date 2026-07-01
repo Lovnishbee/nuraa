@@ -14,6 +14,14 @@ export type CoachConversationRow = {
   deleted_at: string | null
 }
 
+export async function pauseActiveCoachConversations(client: RuntimeSupabaseClient, userId: string, nowIso: string) {
+  const result = await client.from('coach_conversations').update({
+    status: 'paused',
+    last_active_at: nowIso,
+  }).eq('user_id', userId).eq('status', 'active')
+  if (result.error) throw new Error(result.error.message)
+}
+
 export async function createCoachConversation(client: RuntimeSupabaseClient, values: {
   userId: string
   entryPoint: EntryPoint
@@ -33,7 +41,7 @@ export async function createCoachConversation(client: RuntimeSupabaseClient, val
 export async function getCoachConversationForUser(client: RuntimeSupabaseClient, conversationId: string, userId: string): Promise<CoachConversationRow | null> {
   const result = await client.from('coach_conversations').select('*').eq('id', conversationId).eq('user_id', userId).maybeSingle<CoachConversationRow>()
   if (result.error || !result.data) return null
-  if (result.data.status === 'deleted' || result.data.deleted_at) return null
+  if (result.data.status !== 'active' || result.data.deleted_at || result.data.archived_at) return null
   return result.data
 }
 
@@ -66,9 +74,10 @@ export async function touchCoachConversationContext(client: RuntimeSupabaseClien
 
 export async function getRecentCoachMessages(client: RuntimeSupabaseClient, conversationId: string, userId: string, limit = 6) {
   const result = await client.from('coach_messages')
-    .select('role, message_type, content, structured_payload, created_at')
+    .select('role, message_type, content, structured_payload, created_at, validation_status')
     .eq('conversation_id', conversationId)
     .eq('user_id', userId)
+    .in('validation_status', ['valid', 'fallback', 'user_visible'])
     .order('sequence_number', { ascending: false })
     .limit(limit)
   if (result.error || !Array.isArray(result.data)) return []
@@ -78,6 +87,7 @@ export async function getRecentCoachMessages(client: RuntimeSupabaseClient, conv
     content: string | null
     structured_payload: unknown | null
     created_at: string
+    validation_status: string
   }>
 }
 
@@ -86,6 +96,7 @@ export async function persistCoachUserMessage(client: RuntimeSupabaseClient, val
   conversationId: string
   taskType: TaskType
   content: string
+  clientRequestKey?: string
 }) {
   return persistCoachMessage(client, {
     userId: values.userId,
@@ -97,6 +108,7 @@ export async function persistCoachUserMessage(client: RuntimeSupabaseClient, val
     payload: null,
     sourceReferences: [],
     validationStatus: 'user_visible',
+    clientRequestKey: values.clientRequestKey,
   })
 }
 
@@ -107,6 +119,7 @@ export async function persistCoachNuraaMessage(client: RuntimeSupabaseClient, va
   messageType: 'coach_opening' | 'score_explanation' | 'coach_follow_up' | 'safety_response' | 'fallback'
   payload: AIResponsePayload
   validationStatus?: string
+  aiExecutionId?: string
 }) {
   return persistCoachMessage(client, {
     userId: values.userId,
@@ -118,6 +131,7 @@ export async function persistCoachNuraaMessage(client: RuntimeSupabaseClient, va
     payload: values.payload,
     sourceReferences: values.payload.sourceReferences,
     validationStatus: values.validationStatus ?? 'valid',
+    aiExecutionId: values.aiExecutionId,
   })
 }
 
@@ -131,7 +145,29 @@ async function persistCoachMessage(client: RuntimeSupabaseClient, values: {
   payload: unknown | null
   sourceReferences: unknown
   validationStatus: string
+  clientRequestKey?: string
+  aiExecutionId?: string
 }) {
+  if (client.rpc) {
+    const result = await client.rpc<{ id: string; sequence_number: number; created_at: string }>('append_coach_message', {
+      p_user_id: values.userId,
+      p_conversation_id: values.conversationId,
+      p_role: values.role,
+      p_task_type: values.taskType,
+      p_message_type: values.messageType,
+      p_content: values.content,
+      p_structured_payload: values.payload,
+      p_source_references: values.sourceReferences,
+      p_validation_status: values.validationStatus,
+      p_client_request_key: values.clientRequestKey ?? null,
+      p_ai_execution_id: values.aiExecutionId ?? null,
+    })
+    if (result.error) throw new Error(result.error.message)
+    if (!result.data) throw new Error('COACH_MESSAGE_APPEND_FAILED')
+    return result.data
+  }
+  const existing = await findExistingCoachMessage(client, values.conversationId, values.role, values.clientRequestKey, values.aiExecutionId)
+  if (existing) return existing
   const sequenceNumber = await getNextSequenceNumber(client, values.conversationId)
   const result = await client.from('coach_messages').insert({
     conversation_id: values.conversationId,
@@ -144,9 +180,37 @@ async function persistCoachMessage(client: RuntimeSupabaseClient, values: {
     structured_payload: values.payload,
     source_references: values.sourceReferences,
     validation_status: values.validationStatus,
+    client_request_key: values.clientRequestKey ?? null,
+    ai_execution_id: values.aiExecutionId ?? null,
   }).select('id, sequence_number, created_at').single<{ id: string; sequence_number: number; created_at: string }>()
   if (result.error) throw new Error(result.error.message)
   return result.data
+}
+
+async function findExistingCoachMessage(
+  client: RuntimeSupabaseClient,
+  conversationId: string,
+  role: 'user' | 'nuraa',
+  clientRequestKey?: string,
+  aiExecutionId?: string,
+): Promise<{ id: string; sequence_number: number; created_at: string } | null> {
+  if (clientRequestKey) {
+    const result = await client.from('coach_messages')
+      .select('id, sequence_number, created_at')
+      .eq('conversation_id', conversationId)
+      .eq('role', role)
+      .eq('client_request_key', clientRequestKey)
+      .maybeSingle<{ id: string; sequence_number: number; created_at: string }>()
+    if (!result.error && result.data) return result.data
+  }
+  if (aiExecutionId) {
+    const result = await client.from('coach_messages')
+      .select('id, sequence_number, created_at')
+      .eq('ai_execution_id', aiExecutionId)
+      .maybeSingle<{ id: string; sequence_number: number; created_at: string }>()
+    if (!result.error && result.data) return result.data
+  }
+  return null
 }
 
 async function getNextSequenceNumber(client: RuntimeSupabaseClient, conversationId: string): Promise<number> {

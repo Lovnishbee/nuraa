@@ -1,4 +1,5 @@
 import { AskAboutTodayResponseSchema, CoachFollowUpResponseSchema, DailyBriefRewriteResponseSchema, ExplainScoreResponseSchema } from './schemas.ts'
+import { getSchemaVersionForTask } from './contracts.ts'
 import type { AIResponsePayload, ContextEnvelope, TaskType, ValidationResult } from './types.ts'
 
 const prohibitedPatterns = [
@@ -14,7 +15,7 @@ export function validateAIResponse(taskType: TaskType, payload: unknown, context
   if (!schemaResult.ok) return schemaResult
   const businessResult = validateBusinessRules(taskType, schemaResult.payload, context)
   if (!businessResult.ok) return businessResult
-  return { ok: true, payload: schemaResult.payload, schemaVersion: 'phase4a.v1' }
+  return { ok: true, payload: schemaResult.payload, schemaVersion: getSchemaVersionForTask(taskType) }
 }
 
 function parseTaskPayload(taskType: TaskType, payload: unknown): ValidationResult {
@@ -27,7 +28,7 @@ function parseTaskPayload(taskType: TaskType, payload: unknown): ValidationResul
         : CoachFollowUpResponseSchema
   const parsed = schema.safeParse(payload)
   if (!parsed.success) return { ok: false, errorCode: 'SCHEMA_VALIDATION_FAILED' }
-  return { ok: true, payload: parsed.data as AIResponsePayload, schemaVersion: 'phase4a.v1' }
+  return { ok: true, payload: parsed.data as AIResponsePayload, schemaVersion: getSchemaVersionForTask(taskType) }
 }
 
 function validateBusinessRules(taskType: TaskType, payload: AIResponsePayload, context: ContextEnvelope): ValidationResult {
@@ -56,7 +57,7 @@ function validateBusinessRules(taskType: TaskType, payload: AIResponsePayload, c
     if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
   }
 
-  return { ok: true, payload, schemaVersion: 'phase4a.v1' }
+  return { ok: true, payload, schemaVersion: getSchemaVersionForTask(taskType) }
 }
 
 function validateSourceReferences(references: string[], context: ContextEnvelope): boolean {

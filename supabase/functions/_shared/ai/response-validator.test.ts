@@ -9,6 +9,8 @@ describe('ResponseValidator', () => {
       summary: 'Your deterministic score is supported by sleep and recovery.',
       factualBasis: [{ label: 'Score', sourceReference: 'score:1' }],
       interpretations: [{ statement: 'Sleep is supporting today.', confidence: 'moderate' }],
+      primaryAction: null,
+      confidenceNote: null,
       followUpQuestions: ['What should I focus on?'],
       sourceReferences: ['score:1'],
     }, context())
@@ -20,6 +22,8 @@ describe('ResponseValidator', () => {
     const result = validateAIResponse('rewrite_daily_brief', {
       headline: 'Brief',
       summary: 'You should change your medication dose.',
+      primaryAction: null,
+      confidenceNote: null,
       sourceReferences: ['score:1'],
     }, context())
 
@@ -30,6 +34,8 @@ describe('ResponseValidator', () => {
     const result = validateAIResponse('rewrite_daily_brief', {
       headline: 'Brief',
       summary: 'Keep things steady.',
+      primaryAction: null,
+      confidenceNote: null,
       sourceReferences: ['unknown:1'],
     }, context())
 
@@ -53,6 +59,7 @@ function context(): ContextEnvelope {
     confidenceNotes: [],
     missingInformation: [],
     sourceReferences: ['score:1'],
+    priorCoachMessages: [],
     explanationPaths: [],
     safetyConstraints: { medicalAdviceProhibited: true, medicationAdviceProhibited: true, diagnosisProhibited: true },
   }

@@ -62,6 +62,7 @@ export function buildFallback(taskType: TaskType, context: ContextEnvelope): AIR
       confidence: 'moderate' as const,
     }],
     primaryAction: { title: actionTitle, detail: actionDetail },
+    clarificationQuestion: null,
     suggestedPrompts: [
       'What should I prioritise today?',
       'Why is this my focus?',
