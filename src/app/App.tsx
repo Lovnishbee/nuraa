@@ -7,6 +7,7 @@ import { CoachPage } from '@/features/coach/CoachPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { ProactiveIntelligenceDevPage } from '@/features/proactive/dev/ProactiveIntelligenceDevPage'
 import { ProgressPage } from '@/features/progress/ProgressPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -50,6 +51,7 @@ export function App() {
               <Route path="/app/profile" element={<ProfilePage />} />
               <Route path="/dev/components" element={<ComponentPlaygroundPage />} />
               <Route path="/dev/ai-runtime" element={<AIRuntimeDevPage />} />
+              <Route path="/dev/proactive-intelligence" element={<ProactiveIntelligenceDevPage />} />
               <Route path="/app/:feature" element={<ComingSoonPage />} />
             </Route>
           </Route>

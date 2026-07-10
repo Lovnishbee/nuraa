@@ -159,6 +159,43 @@ export type CoachFeedback = {
   reason: string | null
   created_at: string
 }
+export type InsightCandidate = {
+  id: string
+  user_id: string
+  health_date: string
+  theme_key: string
+  candidate_hash: string
+  data_window_start: string
+  data_window_end: string
+  candidate_type: 'observation' | 'opportunity' | 'attention' | 'celebration' | 'data_gap'
+  category: 'sleep' | 'stress' | 'recovery' | 'energy' | 'activity' | 'nutrition' | 'hydration' | 'mood' | 'consistency' | 'goal_progress' | 'readiness' | 'data_gap' | 'weekly_pattern' | 'coach_followup'
+  severity: 'low' | 'medium' | 'high'
+  confidence_score: number
+  confidence_label: 'high' | 'moderate' | 'low' | 'insufficient'
+  deterministic_title: string
+  deterministic_summary: string
+  recommended_action: unknown | null
+  evidence_json: unknown
+  source_references: unknown
+  ranking_score: number | null
+  status: 'candidate' | 'approved' | 'suppressed' | 'expired' | 'converted_to_card' | 'rejected'
+  eligible_from: string
+  expires_at: string
+  suppression_reason: string | null
+  created_by_engine_version: string
+  created_at: string
+  updated_at: string
+}
+export type ProactiveGuidancePreferences = {
+  user_id: string
+  proactive_guidance_enabled: boolean
+  max_cards_per_day: number
+  muted_categories: unknown
+  reduced_categories: unknown
+  last_preference_update_at: string | null
+  created_at: string
+  updated_at: string
+}
 
 export type Database = {
   public: {
@@ -178,6 +215,8 @@ export type Database = {
       coach_conversations: { Row: CoachConversation; Insert: Omit<CoachConversation, 'id' | 'created_at' | 'updated_at' | 'last_active_at' | 'status'> & Partial<Pick<CoachConversation, 'id' | 'created_at' | 'updated_at' | 'last_active_at' | 'status'>>; Update: Partial<CoachConversation> }
       coach_messages: { Row: CoachMessage; Insert: Omit<CoachMessage, 'id' | 'created_at'> & Partial<Pick<CoachMessage, 'id' | 'created_at'>>; Update: Partial<CoachMessage> }
       coach_feedback: { Row: CoachFeedback; Insert: Omit<CoachFeedback, 'id' | 'created_at'> & Partial<Pick<CoachFeedback, 'id' | 'created_at'>>; Update: Partial<CoachFeedback> }
+      insight_candidates: { Row: InsightCandidate; Insert: Omit<InsightCandidate, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<InsightCandidate, 'id' | 'created_at' | 'updated_at'>>; Update: Partial<InsightCandidate> }
+      proactive_guidance_preferences: { Row: ProactiveGuidancePreferences; Insert: Omit<ProactiveGuidancePreferences, 'created_at' | 'updated_at'> & Partial<Pick<ProactiveGuidancePreferences, 'created_at' | 'updated_at'>>; Update: Partial<ProactiveGuidancePreferences> }
       subscriptions: { Row: { id: string; user_id: string; plan_name: string; status: string; created_at: string; updated_at: string }; Insert: Record<string, unknown>; Update: Record<string, unknown> }
     }
   }
