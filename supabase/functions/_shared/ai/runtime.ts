@@ -1,5 +1,5 @@
 import { getRuntimeConfig, readEnvValue } from './config.ts'
-import { getJsonSchemaForTask, getResponseSchemaName, getSchemaVersionForTask } from './contracts.ts'
+import { getJsonSchemaForTask, getResponseSchemaName } from './contracts.ts'
 import { buildContextEnvelope } from './context-builder.ts'
 import { buildFallback } from './fallback-service.ts'
 import { evaluateFeatureAccess } from './feature-flags.ts'
@@ -8,15 +8,6 @@ import { assemblePrompt } from './prompt-orchestrator.ts'
 import { checkRateLimit } from './rate-limit.ts'
 import { finishAuditExecution, startAuditExecution } from './audit-service.ts'
 import { findIdempotentResponse, getModelPolicy, getPromptContractRow } from './repositories/ai-runtime.repository.ts'
-import {
-  createCoachConversation,
-  getCoachConversationForUser,
-  pauseActiveCoachConversations,
-  persistCoachNuraaMessage,
-  persistCoachUserMessage,
-  touchCoachConversationContext,
-  type CoachConversationRow,
-} from './repositories/coach.repository.ts'
 import { routeSafety } from './safety-router.ts'
 import { parseTaskInput } from './task-router.ts'
 import { validateAIResponse } from './response-validator.ts'
@@ -24,7 +15,7 @@ import { AIGatewayResponseSchema } from './schemas.ts'
 import { FakeAIProvider } from './providers/fake.provider.ts'
 import { OpenAIResponsesProvider } from './providers/openai-responses.provider.ts'
 import type { AIProvider } from './providers/provider.interface.ts'
-import type { AIGatewayResponse, AIRequestInput, AIResponsePayload, RuntimeEnv, RuntimeResult, RuntimeSupabaseClient, TaskType } from './types.ts'
+import type { AIGatewayResponse, AIResponsePayload, RuntimeEnv, RuntimeResult, RuntimeSupabaseClient } from './types.ts'
 
 export async function handleAIGatewayRequest(options: {
   client: RuntimeSupabaseClient
@@ -38,19 +29,12 @@ export async function handleAIGatewayRequest(options: {
   if (!parsed.ok) return errorResponse(400, 'invalid-request', 'rewrite_daily_brief', parsed.errorCode)
   const input = parsed.input
   const requestId = crypto.randomUUID()
-  if (input.entryPoint === 'future_dashboard' || input.entryPoint === 'future_coach') {
+  if (input.entryPoint !== 'internal_dev') {
     return disabledResponse(requestId, input.taskType)
   }
   const featureAccess = await evaluateFeatureAccess({ client: options.client, env: options.env, userId: options.userId, input })
   if (!featureAccess.enabled) {
     return disabledResponse(requestId, input.taskType)
-  }
-
-  const existingConversation = input.conversationId
-    ? await getCoachConversationForUser(options.client, input.conversationId, options.userId)
-    : null
-  if (input.taskType === 'coach_follow_up' && !existingConversation) {
-    return errorResponse(404, requestId, input.taskType, 'CONVERSATION_NOT_FOUND')
   }
 
   const runtimeConfig = getRuntimeConfig(options.env)
@@ -76,15 +60,11 @@ export async function handleAIGatewayRequest(options: {
         status: idempotent.execution.status === 'completed' ? 'completed' : 'fallback',
         fallbackUsed: idempotent.execution.fallback_used,
         payload: idempotent.response.validated_payload,
-        messageId: idempotent.execution.coach_message_id ?? undefined,
         safeMeta: { responseSchemaVersion: idempotent.response.schema_version, schemaValidationPassed: true },
       }),
     }
   }
 
-  const conversation = input.entryPoint === 'internal_dev'
-    ? null
-    : await resolveCoachConversation(options.client, options.userId, input, existingConversation)
   const promptContractRow = await getPromptContractRow(options.client, input.taskType)
   const safety = routeSafety(input.taskType, input.userInput?.question)
   const requestHash = await stableJsonHash(input)
@@ -100,19 +80,6 @@ export async function handleAIGatewayRequest(options: {
       idempotencyKey: auditIdempotencyKey,
       requestHash,
     })
-    let messageId: string | undefined
-    if (conversation) {
-      const message = await persistCoachNuraaMessage(options.client, {
-        userId: options.userId,
-        conversationId: conversation.id,
-        taskType: input.taskType,
-        messageType: 'safety_response',
-        payload: safety.response,
-        validationStatus: 'safety_routed',
-        aiExecutionId: execution.id,
-      })
-      messageId = message.id
-    }
     await finishAuditExecution(options.client, {
       executionId: execution.id,
       taskType: input.taskType,
@@ -120,7 +87,6 @@ export async function handleAIGatewayRequest(options: {
       status: 'safety_routed',
       fallbackUsed: true,
       latencyMs: 0,
-      coachMessageId: messageId,
     })
     return {
       httpStatus: 200,
@@ -129,27 +95,13 @@ export async function handleAIGatewayRequest(options: {
         taskType: input.taskType,
         status: 'safety_routed',
         fallbackUsed: true,
-        conversationId: conversation?.id,
-        messageId,
         payload: safety.response,
-        safeMeta: { responseSchemaVersion: getSchemaVersionForTask(input.taskType), promptContractVersion: promptContractRow.version, schemaValidationPassed: true, latencyMs: 0 },
+        safeMeta: { responseSchemaVersion: 'phase4a.v1', promptContractVersion: promptContractRow.version, schemaValidationPassed: true, latencyMs: 0 },
       }),
     }
   }
 
-  if (conversation && input.taskType === 'coach_follow_up' && input.userInput?.question) {
-    await persistCoachUserMessage(options.client, {
-      userId: options.userId,
-      conversationId: conversation.id,
-      taskType: input.taskType,
-      content: input.userInput.question,
-      clientRequestKey: input.idempotencyKey,
-    })
-  }
   const context = await buildContextEnvelope({ client: options.client, userId: options.userId, input, now: options.now })
-  if (conversation) {
-    await touchCoachConversationContext(options.client, conversation.id, context.id, (options.now ?? new Date()).toISOString())
-  }
   const prompt = assemblePrompt(input, context)
   const modelPolicy = await getModelPolicy(options.client, prompt.modelAlias)
   const execution = await startAuditExecution(options.client, {
@@ -180,18 +132,6 @@ export async function handleAIGatewayRequest(options: {
     })
     const validation = validateAIResponse(input.taskType, providerResult.parsed, context)
     if (!validation.ok) throw new Error(validation.errorCode)
-    let messageId: string | undefined
-    if (conversation) {
-      const message = await persistCoachNuraaMessage(options.client, {
-        userId: options.userId,
-        conversationId: conversation.id,
-        taskType: input.taskType,
-        messageType: messageTypeForTask(input.taskType, false),
-        payload: validation.payload,
-        aiExecutionId: execution.id,
-      })
-      messageId = message.id
-    }
     await finishAuditExecution(options.client, {
       executionId: execution.id,
       taskType: input.taskType,
@@ -201,7 +141,6 @@ export async function handleAIGatewayRequest(options: {
       latencyMs: providerResult.latencyMs,
       inputTokens: providerResult.usage?.inputTokens,
       outputTokens: providerResult.usage?.outputTokens,
-      coachMessageId: messageId,
     })
     return {
       httpStatus: 200,
@@ -210,8 +149,6 @@ export async function handleAIGatewayRequest(options: {
         taskType: input.taskType,
         status: 'completed',
         fallbackUsed: false,
-        conversationId: conversation?.id,
-        messageId,
         contextExpiresAt: context.expiresAt,
         payload: validation.payload,
         safeMeta: { responseSchemaVersion: validation.schemaVersion, promptContractVersion: prompt.promptContractVersion, schemaValidationPassed: true, latencyMs: providerResult.latencyMs },
@@ -219,19 +156,6 @@ export async function handleAIGatewayRequest(options: {
     }
   } catch (error) {
     const fallback = buildFallback(input.taskType, context)
-    let messageId: string | undefined
-    if (conversation) {
-      const message = await persistCoachNuraaMessage(options.client, {
-        userId: options.userId,
-        conversationId: conversation.id,
-        taskType: input.taskType,
-        messageType: messageTypeForTask(input.taskType, true),
-        payload: fallback,
-        validationStatus: 'fallback',
-        aiExecutionId: execution.id,
-      })
-      messageId = message.id
-    }
     await finishAuditExecution(options.client, {
       executionId: execution.id,
       taskType: input.taskType,
@@ -239,7 +163,6 @@ export async function handleAIGatewayRequest(options: {
       status: 'fallback',
       fallbackUsed: true,
       errorCode: error instanceof Error ? error.message : 'AI_PROVIDER_FAILED',
-      coachMessageId: messageId,
     })
     return {
       httpStatus: 200,
@@ -248,36 +171,12 @@ export async function handleAIGatewayRequest(options: {
         taskType: input.taskType,
         status: 'fallback',
         fallbackUsed: true,
-        conversationId: conversation?.id,
-        messageId,
         contextExpiresAt: context.expiresAt,
         payload: fallback,
-        safeMeta: { responseSchemaVersion: getSchemaVersionForTask(input.taskType), promptContractVersion: prompt.promptContractVersion, schemaValidationPassed: true },
+        safeMeta: { responseSchemaVersion: 'phase4a.v1', promptContractVersion: prompt.promptContractVersion, schemaValidationPassed: true },
       }),
     }
   }
-}
-
-async function resolveCoachConversation(
-  client: RuntimeSupabaseClient,
-  userId: string,
-  input: AIRequestInput,
-  existingConversation: CoachConversationRow | null,
-): Promise<CoachConversationRow> {
-  if (existingConversation) return existingConversation
-  await pauseActiveCoachConversations(client, userId, new Date().toISOString())
-  return createCoachConversation(client, {
-    userId,
-    entryPoint: input.entryPoint,
-    taskType: input.taskType,
-  })
-}
-
-function messageTypeForTask(taskType: TaskType, fallback: boolean) {
-  if (fallback) return 'fallback' as const
-  if (taskType === 'explain_score') return 'score_explanation' as const
-  if (taskType === 'ask_about_today') return 'coach_opening' as const
-  return 'coach_follow_up' as const
 }
 
 function createProvider(env: RuntimeEnv, modelPolicy: { model_env_key: string } | null): AIProvider {

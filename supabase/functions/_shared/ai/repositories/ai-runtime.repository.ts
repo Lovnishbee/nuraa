@@ -1,9 +1,7 @@
-import { PHASE4B_SCHEMA_VERSION } from '../types.ts'
 import type { ModelPolicy, PromptContractRow, RuntimeSupabaseClient, TaskType } from '../types.ts'
 
 export async function getPromptContractRow(client: RuntimeSupabaseClient, taskType: TaskType): Promise<PromptContractRow> {
-  const version = taskType === 'coach_follow_up' ? PHASE4B_SCHEMA_VERSION : 'phase4a.v1'
-  const result = await client.from('prompt_contracts').select('*').eq('task_type', taskType).eq('version', version).maybeSingle<PromptContractRow>()
+  const result = await client.from('prompt_contracts').select('*').eq('task_type', taskType).eq('version', 'phase4a.v1').maybeSingle<PromptContractRow>()
   if (result.error || !result.data) throw new Error('PROMPT_CONTRACT_NOT_FOUND')
   return result.data
 }
@@ -59,12 +57,12 @@ export async function createContextItems(client: RuntimeSupabaseClient, contextE
 }
 
 export type IdempotentResponseLookup =
-  | { state: 'found'; execution: { id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null; context_envelope_id: string | null; coach_message_id: string | null }; response: { schema_version: string; validated_payload: unknown } }
+  | { state: 'found'; execution: { id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null; context_envelope_id: string | null }; response: { schema_version: string; validated_payload: unknown } }
   | { state: 'expired' }
 
 export async function findIdempotentResponse(client: RuntimeSupabaseClient, values: { userId: string; taskType: TaskType; idempotencyKey?: string; now?: Date }): Promise<IdempotentResponseLookup | null> {
   if (!values.idempotencyKey) return null
-  const execution = await client.from('ai_executions').select('id, status, fallback_used, safety_route, completed_at, context_envelope_id, coach_message_id').eq('user_id', values.userId).eq('task_type', values.taskType).eq('idempotency_key', values.idempotencyKey).maybeSingle<{ id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null; context_envelope_id: string | null; coach_message_id: string | null }>()
+  const execution = await client.from('ai_executions').select('id, status, fallback_used, safety_route, completed_at, context_envelope_id').eq('user_id', values.userId).eq('task_type', values.taskType).eq('idempotency_key', values.idempotencyKey).maybeSingle<{ id: string; status: string; fallback_used: boolean; safety_route: string | null; completed_at: string | null; context_envelope_id: string | null }>()
   if (execution.error || !execution.data?.completed_at) return null
   if (execution.data.context_envelope_id) {
     const envelope = await client.from('context_envelopes').select('expires_at').eq('id', execution.data.context_envelope_id).maybeSingle<{ expires_at: string }>()

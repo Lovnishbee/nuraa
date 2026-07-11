@@ -18,6 +18,12 @@ export async function evaluateFeatureAccess(options: {
   const taskEnabled = await isFeatureEnabled(options.client, options.env, TASK_FLAG_MAP[options.input.taskType])
   if (!taskEnabled) return { enabled: false, reason: 'task_disabled' }
 
+  if (readBooleanEnv(options.env, 'AI_INTERNAL_ACCESS_REQUIRED', true)) {
+    const access = await getInternalTesterAccess(options.client, options.userId)
+    if (!access.enabled) return { enabled: false, reason: 'not_internal_tester' }
+    if (!access.consent_granted) return { enabled: false, reason: 'consent_missing' }
+  }
+
   if (options.input.entryPoint === 'internal_dev') {
     const internalEnabled = await isFeatureEnabled(options.client, options.env, 'ENABLE_AI_INTERNAL_TESTS')
     if (!internalEnabled) return { enabled: false, reason: 'internal_tests_disabled' }
@@ -28,12 +34,6 @@ export async function evaluateFeatureAccess(options: {
       const dashboardEntryEnabled = await isFeatureEnabled(options.client, options.env, 'ENABLE_AI_COACH_DASHBOARD_ENTRY')
       if (!dashboardEntryEnabled) return { enabled: false, reason: 'dashboard_entry_disabled' }
     }
-  }
-
-  if (readBooleanEnv(options.env, 'AI_INTERNAL_ACCESS_REQUIRED', true)) {
-    const access = await getInternalTesterAccess(options.client, options.userId)
-    if (!access.enabled) return { enabled: false, reason: 'not_internal_tester' }
-    if (!access.consent_granted) return { enabled: false, reason: 'consent_missing' }
   }
 
   if (options.input.entryPoint !== 'internal_dev') {

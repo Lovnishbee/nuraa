@@ -9,6 +9,8 @@ describe('TaskRouter exact entry points', () => {
     ['ask_about_today', 'internal_dev'],
     ['ask_about_today', 'dashboard_ask_today'],
     ['ask_about_today', 'coach_home'],
+    ['ask_about_today', 'future_dashboard'],
+    ['ask_about_today', 'future_coach'],
     ['coach_follow_up', 'coach_follow_up'],
   ] as const)('accepts %s from %s', (taskType, entryPoint) => {
     const result = parseTaskInput({
@@ -26,8 +28,6 @@ describe('TaskRouter exact entry points', () => {
     ['explain_score', 'coach_home'],
     ['ask_about_today', 'dashboard_score'],
     ['coach_follow_up', 'internal_dev'],
-    ['ask_about_today', 'future_dashboard'],
-    ['ask_about_today', 'future_coach'],
   ] as const)('rejects %s from %s', (taskType, entryPoint) => {
     const result = parseTaskInput({
       taskType,

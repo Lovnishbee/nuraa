@@ -39,42 +39,20 @@ describe('feature flag evaluation', () => {
     expect(result).toEqual({ enabled: false, reason: 'consent_missing' })
   })
 
-  it('requires Coach feature flags and internal tester access outside the dev entrypoint', async () => {
+  it('requires internal tester access outside the dev entrypoint when the runtime is internal-only', async () => {
     const result = await evaluateFeatureAccess({
       client: fakeClient({
         ai_feature_flags: [
           { feature_name: 'AI_ENABLED', enabled: true },
-          { feature_name: 'ENABLE_AI_ASK_ABOUT_TODAY', enabled: true },
-          { feature_name: 'ENABLE_AI_COACH', enabled: true },
-          { feature_name: 'ENABLE_AI_COACH_DASHBOARD_ENTRY', enabled: true },
+          { feature_name: 'ENABLE_AI_DAILY_BRIEF', enabled: true },
         ],
       }),
-      env: { AI_ENABLED: 'true', ENABLE_AI_ASK_ABOUT_TODAY: 'true', ENABLE_AI_COACH: 'true', ENABLE_AI_COACH_DASHBOARD_ENTRY: 'true', AI_INTERNAL_ACCESS_REQUIRED: 'true' },
+      env: { AI_ENABLED: 'true', ENABLE_AI_DAILY_BRIEF: 'true', AI_INTERNAL_ACCESS_REQUIRED: 'true' },
       userId: 'user-1',
-      input: { taskType: 'ask_about_today', entryPoint: 'dashboard_ask_today' },
+      input: { taskType: 'rewrite_daily_brief', entryPoint: 'future_dashboard' },
     })
 
     expect(result).toEqual({ enabled: false, reason: 'not_internal_tester' })
-  })
-
-  it('requires explicit user AI Coach consent for public Coach entrypoints', async () => {
-    const result = await evaluateFeatureAccess({
-      client: fakeClient({
-        ai_feature_flags: [
-          { feature_name: 'AI_ENABLED', enabled: true },
-          { feature_name: 'ENABLE_AI_ASK_ABOUT_TODAY', enabled: true },
-          { feature_name: 'ENABLE_AI_COACH', enabled: true },
-          { feature_name: 'ENABLE_AI_COACH_DASHBOARD_ENTRY', enabled: true },
-        ],
-        ai_internal_testers: [{ user_id: 'user-1', enabled: true, consent_granted: true }],
-        user_ai_preferences: [{ user_id: 'user-1', ai_coaching_enabled: false }],
-      }),
-      env: { AI_ENABLED: 'true', ENABLE_AI_ASK_ABOUT_TODAY: 'true', ENABLE_AI_COACH: 'true', ENABLE_AI_COACH_DASHBOARD_ENTRY: 'true', AI_INTERNAL_ACCESS_REQUIRED: 'true' },
-      userId: 'user-1',
-      input: { taskType: 'ask_about_today', entryPoint: 'dashboard_ask_today' },
-    })
-
-    expect(result).toEqual({ enabled: false, reason: 'coach_consent_missing' })
   })
 
   it('uses the task-specific feature flag for the requested task only', async () => {

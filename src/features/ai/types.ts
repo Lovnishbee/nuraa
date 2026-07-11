@@ -35,16 +35,36 @@ export type AIInternalAccessStatus = {
   consentGranted: boolean
 }
 
+export type CoachSourceReference = {
+  label: string
+  sourceReference: string
+}
+
+export type CoachInterpretation = {
+  statement: string
+  confidence: 'high' | 'moderate' | 'low'
+}
+
+export type CoachPrimaryAction = {
+  title: string
+  detail: string | null
+}
+
+export type CoachPrimaryFocus = {
+  title: string
+  detail: string
+}
+
 export type CoachResponsePayload = {
   headline?: string
   summary?: string
-  primaryFocus?: { title: string; detail: string }
-  primaryAction?: { title: string; detail: string | null } | null
-  factualBasis?: Array<{ label: string; sourceReference: string }>
-  interpretations?: Array<{ statement: string; confidence: 'high' | 'moderate' | 'low' }>
-  suggestedPrompts?: string[]
-  followUpQuestions?: string[]
+  factualBasis?: CoachSourceReference[]
+  interpretations?: CoachInterpretation[]
+  primaryAction?: CoachPrimaryAction | null
+  primaryFocus?: CoachPrimaryFocus
   clarificationQuestion?: string | null
+  suggestedPrompts?: string[]
   confidenceNote?: string | null
+  followUpQuestions?: string[]
   sourceReferences?: string[]
 }

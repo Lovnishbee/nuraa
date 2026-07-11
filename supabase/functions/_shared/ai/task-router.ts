@@ -3,9 +3,9 @@ import type { AIRequestInput, EntryPoint, TaskType } from './types.ts'
 
 export const ALLOWED_TASK_TYPES: TaskType[] = ['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up']
 const TASK_ENTRYPOINTS: Record<TaskType, EntryPoint[]> = {
-  rewrite_daily_brief: ['internal_dev'],
-  explain_score: ['internal_dev', 'dashboard_score'],
-  ask_about_today: ['internal_dev', 'dashboard_ask_today', 'coach_home'],
+  rewrite_daily_brief: ['internal_dev', 'future_dashboard', 'future_coach'],
+  explain_score: ['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_score'],
+  ask_about_today: ['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_ask_today', 'coach_home'],
   coach_follow_up: ['coach_follow_up'],
 }
 

@@ -385,6 +385,18 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+[functions.ai-gateway]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.coach-control]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.proactive-engine]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
 [analytics]
 enabled = true
 port = 54327
