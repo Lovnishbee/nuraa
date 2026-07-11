@@ -1,0 +1,43 @@
+name: Nuraa CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    name: Lint, test, and build
+    runs-on: ubuntu-latest
+    env:
+      AI_PROVIDER_DEFAULT: fake
+      AI_ENABLED: 'false'
+      ENABLE_AI_INTERNAL_TESTS: 'false'
+      ENABLE_AI_DAILY_BRIEF: 'false'
+      ENABLE_AI_SCORE_EXPLANATION: 'false'
+      ENABLE_AI_ASK_ABOUT_TODAY: 'false'
+      AI_INTERNAL_ACCESS_REQUIRED: 'true'
+      OPENAI_API_KEY: ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck AI runtime
+        run: npm run typecheck:ai-runtime
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
