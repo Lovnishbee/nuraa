@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { getCoachEligibility } from '@/services/coachService'
 import { getDashboardSummary } from '@/services/intelligence'
 import { getProfileBundle } from '@/services/profile'
+import { getProactiveCards } from '@/services/proactiveCards'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
 import { getCurrentDate } from '@/lib/date'
@@ -23,6 +24,7 @@ import { TodaysPrioritiesCard } from './components/TodaysPrioritiesCard'
 import type { WidgetStatus } from './components/types'
 import { WeeklyReportCard } from './components/WeeklyReportCard'
 import { WorkoutCard } from './components/WorkoutCard'
+import { ProactiveGuidanceSection } from '@/features/proactive/components/ProactiveGuidanceSection'
 
 function queryStatus(isLoading: boolean, isError: boolean, hasData = true): WidgetStatus {
   if (isLoading) return 'loading'
@@ -54,6 +56,14 @@ export function DashboardPage() {
   const signalStatus = queryStatus(dashboard.isLoading, dashboard.isError, Boolean(signal))
   const trendValues = dashboard.data?.scoreHistory.map((item) => item.total_score ?? 70) ?? []
   const showCoachActions = Boolean(coachEligibility.data?.internalEnabled && coachEligibility.data.internalConsentGranted && coachEligibility.data.coachEnabled)
+  const proactiveCards = useQuery({
+    queryKey: ['proactive-cards', user.id],
+    queryFn: getProactiveCards,
+    enabled: showCoachActions,
+    retry: false,
+    staleTime: 10 * 60_000,
+  })
+  const proactiveEnabled = showCoachActions && proactiveCards.data?.status !== 'disabled'
 
   return (
     <DashboardLayout>
@@ -87,6 +97,15 @@ export function DashboardPage() {
         <section>
           <TodaysPrioritiesCard items={focusItems} status={queryStatus(dashboard.isLoading, dashboard.isError, focusItems.length > 0)} onRetry={() => void dashboard.refetch()} />
         </section>
+
+        <ProactiveGuidanceSection
+          cards={proactiveCards.data?.cards ?? []}
+          enabled={proactiveEnabled}
+          coachEnabled={showCoachActions}
+          isLoading={proactiveCards.isLoading || proactiveCards.isPending}
+          isError={proactiveCards.isError}
+          onRetry={() => void proactiveCards.refetch()}
+        />
 
         <section>
           <SectionHeader title="Signals" eyebrow="Learning your routine" action={<Button asChild variant="secondary" size="sm"><Link to="/app/check-in">Daily check-in</Link></Button>} />

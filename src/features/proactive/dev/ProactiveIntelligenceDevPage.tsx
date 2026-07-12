@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Activity, Eye, ShieldCheck, Sparkles } from 'lucide-react'
+import { Activity, CreditCard, Eye, ShieldCheck, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { MobileHeader } from '@/components/app/MobileHeader'
@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { getAIInternalAccessStatus } from '@/services/aiGateway'
+import { getProactiveCards } from '@/services/proactiveCards'
 import { invokeProactiveEngine } from '@/services/proactiveIntelligenceService'
-import type { InsightCandidate } from '../types'
+import type { InsightCandidate, ProactiveCard } from '../types'
 
 export function ProactiveIntelligenceDevPage() {
   const access = useQuery({
@@ -26,6 +27,12 @@ export function ProactiveIntelligenceDevPage() {
   const generate = useMutation({
     mutationFn: () => invokeProactiveEngine({ action: 'generate_candidates' }),
     onSuccess: () => void summary.refetch(),
+  })
+  const cards = useQuery({
+    queryKey: ['proactive-dev-cards'],
+    queryFn: getProactiveCards,
+    enabled: Boolean(access.data?.enabled && access.data.consentGranted),
+    retry: false,
   })
 
   if (access.isLoading || access.isPending) {
@@ -103,11 +110,40 @@ export function ProactiveIntelligenceDevPage() {
           </Card>
 
           <Card className="p-5">
-            <p className="font-bold text-forest">Phase V-B / V-C unavailable</p>
-            <p className="mt-2 text-sm leading-6 text-ink/60">Dashboard cards, card feedback, AI card copy, card-to-Coach, and weekly reflection previews are intentionally deferred.</p>
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-2xl bg-sage text-nuraa"><CreditCard size={18} /></span>
+              <div>
+                <p className="font-bold text-forest">Phase V-B card preview</p>
+                <p className="text-sm text-ink/58">Generated dashboard cards for eligible private-beta users.</p>
+              </div>
+            </div>
+            {cards.isLoading && <p className="mt-4 text-sm text-ink/58">Loading cards…</p>}
+            {cards.data?.status === 'disabled' && <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">Cards disabled: {cards.data.reason}</p>}
+            <div className="mt-4 space-y-3">
+              {(cards.data?.cards ?? []).slice(0, 5).map((card) => <CardPreview key={card.id} card={card} />)}
+              {cards.data?.status === 'completed' && (cards.data.cards ?? []).length === 0 && <p className="text-sm text-ink/58">No cards generated from approved candidates.</p>}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <p className="font-bold text-forest">Phase V-C unavailable</p>
+            <p className="mt-2 text-sm leading-6 text-ink/60">Weekly reflections and notification delivery remain intentionally deferred.</p>
           </Card>
         </div>
       </div>
+    </div>
+  )
+}
+
+function CardPreview({ card }: { card: ProactiveCard }) {
+  return (
+    <div className="rounded-2xl border border-forest/10 bg-canvas p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-forest">{card.title}</p>
+        <Badge>{card.status}</Badge>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-ink/58">{card.category} · confidence {card.confidence_score ?? '—'}</p>
+      <p className="mt-2 text-xs leading-5 text-ink/62">{card.body}</p>
     </div>
   )
 }

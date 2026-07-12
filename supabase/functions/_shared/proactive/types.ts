@@ -1,10 +1,14 @@
 export const PROACTIVE_ENGINE_VERSION = 'phase-v-a.v1'
+export const PROACTIVE_CARD_ENGINE_VERSION = 'phase-v-b.v1'
 
 export type CandidateType = 'observation' | 'opportunity' | 'attention' | 'celebration' | 'data_gap'
 export type CandidateCategory = 'sleep' | 'stress' | 'recovery' | 'energy' | 'activity' | 'nutrition' | 'hydration' | 'mood' | 'consistency' | 'goal_progress' | 'readiness' | 'data_gap' | 'weekly_pattern' | 'coach_followup'
 export type CandidateSeverity = 'low' | 'medium' | 'high'
 export type ConfidenceLabel = 'high' | 'moderate' | 'low' | 'insufficient'
 export type CandidateStatus = 'candidate' | 'approved' | 'suppressed' | 'expired' | 'converted_to_card' | 'rejected'
+export type ProactiveCardStatus = 'active' | 'shown' | 'dismissed' | 'snoozed' | 'expired' | 'archived'
+export type ProactiveCardFeedbackType = 'helpful' | 'not_helpful' | 'not_relevant' | 'too_frequent' | 'show_less_like_this'
+export type ProactiveCardEventType = 'created' | 'shown' | 'opened' | 'dismissed' | 'snoozed' | 'feedback_submitted' | 'coach_handoff_started'
 
 export type SourceReference = {
   sourceReference: string
@@ -50,6 +54,50 @@ export type InsightCandidate = {
   created_by_engine_version: string
   created_at?: string
   updated_at?: string
+}
+
+export type ProactiveCard = {
+  id?: string
+  user_id: string
+  candidate_id: string
+  health_date: string
+  card_type: CandidateType
+  category: CandidateCategory
+  severity: CandidateSeverity
+  title: string
+  body: string
+  primary_action_label: string | null
+  primary_action_type: string | null
+  primary_action_payload: Record<string, unknown>
+  evidence_refs: SourceReference[]
+  confidence_score: number | null
+  confidence_label: ConfidenceLabel | null
+  status: ProactiveCardStatus
+  source_engine_version: string
+  copy_source: 'deterministic' | 'ai_rewrite'
+  shown_at: string | null
+  dismissed_at: string | null
+  snoozed_until: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type ProactiveCardFeedback = {
+  id?: string
+  user_id: string
+  card_id: string
+  feedback_type: ProactiveCardFeedbackType
+  feedback_reason: string | null
+  created_at?: string
+}
+
+export type ProactiveCardEvent = {
+  id?: string
+  user_id: string
+  card_id: string
+  event_type: ProactiveCardEventType
+  event_payload: Record<string, unknown>
+  created_at?: string
 }
 
 export type ProactiveGuidancePreferences = {
@@ -176,6 +224,8 @@ export type ProactiveSnapshot = {
   userPreferences: UserPreferencesSafeRow | null
   coachFeedback: CoachFeedbackAggregate[]
   existingCandidates: InsightCandidate[]
+  existingCards?: ProactiveCard[]
+  recentFeedback?: ProactiveCardFeedback[]
   preferences: ProactiveGuidancePreferences
 }
 
@@ -216,6 +266,14 @@ export type ProactiveGenerationResult = {
   approved: number
   suppressed: number
   candidates: InsightCandidate[]
+}
+
+export type ProactiveCardGenerationResult = {
+  status: 'completed' | 'disabled'
+  healthDate: string
+  generated: number
+  cards: ProactiveCard[]
+  suppressed: Array<{ candidateId: string; themeKey: string; reason: string }>
 }
 
 export type ProactiveRuntimeEnv = Record<string, string | undefined>

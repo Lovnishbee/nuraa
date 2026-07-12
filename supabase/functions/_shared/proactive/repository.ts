@@ -1,13 +1,17 @@
 import { getLocalISODate } from '../ai/date.ts'
-import { PROACTIVE_ENGINE_VERSION, type CoachFeedbackAggregate, type DailyBriefRow, type DailyCheckinSafeRow, type HealthSignalRow, type InsightCandidate, type InsightEventRow, type ProactiveGuidancePreferences, type ProactiveSnapshot, type ProactiveSupabaseClient, type ScoreFactorRow, type ScoreRow, type UserGoalRow, type UserPreferencesSafeRow } from './types.ts'
+import { PROACTIVE_ENGINE_VERSION, type CoachFeedbackAggregate, type DailyBriefRow, type DailyCheckinSafeRow, type HealthSignalRow, type InsightCandidate, type InsightEventRow, type ProactiveCard, type ProactiveCardEventType, type ProactiveCardFeedback, type ProactiveCardFeedbackType, type ProactiveGuidancePreferences, type ProactiveSnapshot, type ProactiveSupabaseClient, type ScoreFactorRow, type ScoreRow, type UserGoalRow, type UserPreferencesSafeRow } from './types.ts'
 
-const phaseVFlags = ['ENABLE_PROACTIVE_INTELLIGENCE', 'ENABLE_PHASE_V_DEV_SURFACE']
+const devFlags = ['ENABLE_PROACTIVE_INTELLIGENCE', 'ENABLE_PHASE_V_DEV_SURFACE']
+const cardFlags = ['ENABLE_PROACTIVE_INTELLIGENCE', 'ENABLE_AI_CARDS']
+const cardFeedbackFlags = [...cardFlags, 'ENABLE_CARD_FEEDBACK']
+const cardCoachFlags = [...cardFlags, 'ENABLE_CARD_TO_COACH']
 
-export async function evaluateProactiveAccess(client: ProactiveSupabaseClient, userId: string) {
+export async function evaluateProactiveAccess(client: ProactiveSupabaseClient, userId: string, surface: 'dev' | 'cards' | 'card_feedback' | 'card_coach' = 'dev') {
+  const requiredFlags = getRequiredFlags(surface)
   const [tester, preferences, flags] = await Promise.all([
     client.from('ai_internal_testers').select('enabled, consent_granted').eq('user_id', userId).maybeSingle<{ enabled: boolean; consent_granted: boolean }>(),
     client.from('user_ai_preferences').select('ai_coaching_enabled').eq('user_id', userId).maybeSingle<{ ai_coaching_enabled: boolean }>(),
-    client.from('ai_feature_flags').select('feature_name, enabled').in('feature_name', phaseVFlags),
+    client.from('ai_feature_flags').select('feature_name, enabled').in('feature_name', requiredFlags),
   ])
 
   if (tester.error || preferences.error || flags.error) return { enabled: false, reason: 'access_lookup_failed' }
@@ -15,8 +19,14 @@ export async function evaluateProactiveAccess(client: ProactiveSupabaseClient, u
   if (!preferences.data?.ai_coaching_enabled) return { enabled: false, reason: 'ai_coaching_consent_required' }
   const rows = ((flags.data ?? []) as Array<{ feature_name: string; enabled: boolean }>)
   const enabledFlags = new Map(rows.map((row) => [row.feature_name, row.enabled]))
-  if (!phaseVFlags.every((flag) => enabledFlags.get(flag) === true)) return { enabled: false, reason: 'phase_v_flags_disabled' }
+  if (!requiredFlags.every((flag) => enabledFlags.get(flag) === true)) return { enabled: false, reason: surface === 'dev' ? 'phase_v_flags_disabled' : 'card_flags_disabled' }
   return { enabled: true, reason: null }
+}
+
+function getRequiredFlags(surface: 'dev' | 'cards' | 'card_feedback' | 'card_coach') {
+  if (surface === 'card_feedback') return cardFeedbackFlags
+  if (surface === 'card_coach') return cardCoachFlags
+  return surface === 'cards' ? cardFlags : devFlags
 }
 
 export async function buildProactiveSnapshot(client: ProactiveSupabaseClient, userId: string, now = new Date()): Promise<ProactiveSnapshot> {
@@ -40,6 +50,8 @@ export async function buildProactiveSnapshot(client: ProactiveSupabaseClient, us
     userPreferences,
     coachFeedback,
     existingCandidates,
+    existingCards,
+    recentFeedback,
   ] = await Promise.all([
     client.from('nuraa_scores').select('*').eq('user_id', userId).gte('score_date', previousWindowStart).lte('score_date', healthDate).order('score_date', { ascending: false }),
     client.from('score_factors').select('*').eq('user_id', userId).gte('score_date', previousWindowStart).lte('score_date', healthDate).order('score_date', { ascending: false }),
@@ -51,6 +63,8 @@ export async function buildProactiveSnapshot(client: ProactiveSupabaseClient, us
     client.from('user_preferences').select('id, user_id, diet_preference, preferred_workout_time, work_type, work_schedule, commute_minutes, travel_frequency').eq('user_id', userId).maybeSingle<UserPreferencesSafeRow>(),
     client.from('coach_feedback').select('feedback_type').eq('user_id', userId).gte('created_at', getLocalISODate(timezone, addDays(now, -30))),
     client.from('insight_candidates').select('*').eq('user_id', userId).gte('created_at', new Date(now.getTime() - 30 * 86_400_000).toISOString()).order('created_at', { ascending: false }),
+    client.from('proactive_cards').select('*').eq('user_id', userId).gte('created_at', new Date(now.getTime() - 30 * 86_400_000).toISOString()).order('created_at', { ascending: false }),
+    client.from('proactive_card_feedback').select('*').eq('user_id', userId).gte('created_at', new Date(now.getTime() - 30 * 86_400_000).toISOString()).order('created_at', { ascending: false }),
   ])
 
   assertNoError(scores.error, 'SCORES_READ_FAILED')
@@ -63,6 +77,8 @@ export async function buildProactiveSnapshot(client: ProactiveSupabaseClient, us
   assertNoError(userPreferences.error, 'PREFERENCES_READ_FAILED')
   assertNoError(coachFeedback.error, 'COACH_FEEDBACK_READ_FAILED')
   assertNoError(existingCandidates.error, 'EXISTING_CANDIDATES_READ_FAILED')
+  assertNoError(existingCards.error, 'EXISTING_CARDS_READ_FAILED')
+  assertNoError(recentFeedback.error, 'CARD_FEEDBACK_READ_FAILED')
 
   return {
     userId,
@@ -81,6 +97,8 @@ export async function buildProactiveSnapshot(client: ProactiveSupabaseClient, us
     userPreferences: userPreferences.data,
     coachFeedback: aggregateCoachFeedback((coachFeedback.data ?? []) as Array<{ feedback_type: string }>),
     existingCandidates: (existingCandidates.data ?? []) as InsightCandidate[],
+    existingCards: normalizeCards((existingCards.data ?? []) as ProactiveCard[]),
+    recentFeedback: (recentFeedback.data ?? []) as ProactiveCardFeedback[],
     preferences,
   }
 }
@@ -130,6 +148,119 @@ export async function getProactiveSummary(client: ProactiveSupabaseClient, userI
   return (result.data ?? []) as InsightCandidate[]
 }
 
+export async function persistProactiveCards(client: ProactiveSupabaseClient, cards: ProactiveCard[]) {
+  if (cards.length === 0) return []
+  const payload = cards.map((card) => ({
+    user_id: card.user_id,
+    candidate_id: card.candidate_id,
+    health_date: card.health_date,
+    card_type: card.card_type,
+    category: card.category,
+    severity: card.severity,
+    title: card.title,
+    body: card.body,
+    primary_action_label: card.primary_action_label,
+    primary_action_type: card.primary_action_type,
+    primary_action_payload: card.primary_action_payload,
+    evidence_refs: card.evidence_refs,
+    confidence_score: card.confidence_score,
+    confidence_label: card.confidence_label,
+    status: card.status,
+    source_engine_version: card.source_engine_version,
+    copy_source: card.copy_source,
+    shown_at: card.shown_at,
+    dismissed_at: card.dismissed_at,
+    snoozed_until: card.snoozed_until,
+  }))
+  const result = await client
+    .from('proactive_cards')
+    .upsert(payload, { onConflict: 'user_id,candidate_id' })
+    .select('*')
+  assertNoError(result.error, 'CARD_UPSERT_FAILED')
+  const rows = normalizeCards((result.data ?? []) as ProactiveCard[])
+  await Promise.all(rows.map((card) => writeCardEvent(client, card.user_id, card.id!, 'created', { candidateId: card.candidate_id })))
+  return rows
+}
+
+export async function getActiveProactiveCards(client: ProactiveSupabaseClient, userId: string, now = new Date()) {
+  const result = await client
+    .from('proactive_cards')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['active', 'shown', 'snoozed'])
+    .gte('created_at', new Date(now.getTime() - 7 * 86_400_000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(6)
+  assertNoError(result.error, 'CARDS_READ_FAILED')
+  return normalizeCards((result.data ?? []) as ProactiveCard[]).filter((card) => card.status !== 'snoozed' || !card.snoozed_until || new Date(card.snoozed_until).getTime() <= now.getTime())
+}
+
+export async function updateProactiveCardStatus(client: ProactiveSupabaseClient, userId: string, cardId: string, values: Partial<Pick<ProactiveCard, 'status' | 'shown_at' | 'dismissed_at' | 'snoozed_until'>>) {
+  const result = await client
+    .from('proactive_cards')
+    .update(values)
+    .eq('id', cardId)
+    .eq('user_id', userId)
+    .select('*')
+    .single<ProactiveCard>()
+  assertNoError(result.error, 'CARD_UPDATE_FAILED')
+  if (!result.data) throw new Error('CARD_NOT_FOUND')
+  return normalizeCard(result.data)
+}
+
+export async function insertProactiveCardFeedback(client: ProactiveSupabaseClient, values: {
+  userId: string
+  cardId: string
+  feedbackType: ProactiveCardFeedbackType
+  feedbackReason?: string | null
+}) {
+  const card = await getOwnedCard(client, values.userId, values.cardId)
+  const result = await client
+    .from('proactive_card_feedback')
+    .insert({
+      user_id: values.userId,
+      card_id: values.cardId,
+      feedback_type: values.feedbackType,
+      feedback_reason: values.feedbackReason ?? null,
+    })
+    .select('*')
+    .single<ProactiveCardFeedback>()
+  assertNoError(result.error, 'CARD_FEEDBACK_FAILED')
+  await writeCardEvent(client, values.userId, values.cardId, 'feedback_submitted', { feedbackType: values.feedbackType })
+  return { feedback: result.data, card }
+}
+
+export async function getOwnedCard(client: ProactiveSupabaseClient, userId: string, cardId: string) {
+  const result = await client
+    .from('proactive_cards')
+    .select('*')
+    .eq('id', cardId)
+    .eq('user_id', userId)
+    .maybeSingle<ProactiveCard>()
+  assertNoError(result.error, 'CARD_READ_FAILED')
+  if (!result.data) throw new Error('CARD_NOT_FOUND')
+  return normalizeCard(result.data)
+}
+
+export async function writeCardEvent(client: ProactiveSupabaseClient, userId: string, cardId: string, eventType: ProactiveCardEventType, payload: Record<string, unknown> = {}) {
+  const result = await client
+    .from('proactive_card_events')
+    .insert({ user_id: userId, card_id: cardId, event_type: eventType, event_payload: payload })
+  assertNoError(result.error, 'CARD_EVENT_FAILED')
+}
+
+function normalizeCards(cards: ProactiveCard[]) {
+  return cards.map(normalizeCard)
+}
+
+function normalizeCard(card: ProactiveCard): ProactiveCard {
+  return {
+    ...card,
+    primary_action_payload: isRecord(card.primary_action_payload) ? card.primary_action_payload : {},
+    evidence_refs: Array.isArray(card.evidence_refs) ? card.evidence_refs : [],
+  }
+}
+
 async function ensureProactivePreferences(client: ProactiveSupabaseClient, userId: string): Promise<ProactiveGuidancePreferences> {
   const result = await client
     .from('proactive_guidance_preferences')
@@ -155,6 +286,10 @@ function aggregateCoachFeedback(rows: Array<{ feedback_type: string }>): CoachFe
   const counts = new Map<string, number>()
   for (const row of rows) counts.set(row.feedback_type, (counts.get(row.feedback_type) ?? 0) + 1)
   return Array.from(counts.entries()).map(([feedback_type, count]) => ({ feedback_type, count }))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
 function assertNoError(error: unknown, code: string): asserts error is null {

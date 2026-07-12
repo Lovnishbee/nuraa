@@ -196,6 +196,47 @@ export type ProactiveGuidancePreferences = {
   created_at: string
   updated_at: string
 }
+export type ProactiveCard = {
+  id: string
+  user_id: string
+  candidate_id: string
+  health_date: string
+  card_type: 'observation' | 'opportunity' | 'attention' | 'celebration' | 'data_gap'
+  category: 'sleep' | 'stress' | 'recovery' | 'energy' | 'activity' | 'nutrition' | 'hydration' | 'mood' | 'consistency' | 'goal_progress' | 'readiness' | 'data_gap' | 'weekly_pattern' | 'coach_followup'
+  severity: 'low' | 'medium' | 'high'
+  title: string
+  body: string
+  primary_action_label: string | null
+  primary_action_type: string | null
+  primary_action_payload: unknown
+  evidence_refs: unknown
+  confidence_score: number | null
+  confidence_label: 'high' | 'moderate' | 'low' | 'insufficient' | null
+  status: 'active' | 'shown' | 'dismissed' | 'snoozed' | 'expired' | 'archived'
+  source_engine_version: string
+  copy_source: 'deterministic' | 'ai_rewrite'
+  shown_at: string | null
+  dismissed_at: string | null
+  snoozed_until: string | null
+  created_at: string
+  updated_at: string
+}
+export type ProactiveCardFeedback = {
+  id: string
+  user_id: string
+  card_id: string
+  feedback_type: 'helpful' | 'not_helpful' | 'not_relevant' | 'too_frequent' | 'show_less_like_this'
+  feedback_reason: string | null
+  created_at: string
+}
+export type ProactiveCardEvent = {
+  id: string
+  user_id: string
+  card_id: string
+  event_type: 'created' | 'shown' | 'opened' | 'dismissed' | 'snoozed' | 'feedback_submitted' | 'coach_handoff_started'
+  event_payload: unknown
+  created_at: string
+}
 
 export type Database = {
   public: {
@@ -217,6 +258,9 @@ export type Database = {
       coach_feedback: { Row: CoachFeedback; Insert: Omit<CoachFeedback, 'id' | 'created_at'> & Partial<Pick<CoachFeedback, 'id' | 'created_at'>>; Update: Partial<CoachFeedback> }
       insight_candidates: { Row: InsightCandidate; Insert: Omit<InsightCandidate, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<InsightCandidate, 'id' | 'created_at' | 'updated_at'>>; Update: Partial<InsightCandidate> }
       proactive_guidance_preferences: { Row: ProactiveGuidancePreferences; Insert: Omit<ProactiveGuidancePreferences, 'created_at' | 'updated_at'> & Partial<Pick<ProactiveGuidancePreferences, 'created_at' | 'updated_at'>>; Update: Partial<ProactiveGuidancePreferences> }
+      proactive_cards: { Row: ProactiveCard; Insert: Omit<ProactiveCard, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<ProactiveCard, 'id' | 'created_at' | 'updated_at'>>; Update: Partial<ProactiveCard> }
+      proactive_card_feedback: { Row: ProactiveCardFeedback; Insert: Omit<ProactiveCardFeedback, 'id' | 'created_at'> & Partial<Pick<ProactiveCardFeedback, 'id' | 'created_at'>>; Update: Partial<ProactiveCardFeedback> }
+      proactive_card_events: { Row: ProactiveCardEvent; Insert: Omit<ProactiveCardEvent, 'id' | 'created_at'> & Partial<Pick<ProactiveCardEvent, 'id' | 'created_at'>>; Update: Partial<ProactiveCardEvent> }
       subscriptions: { Row: { id: string; user_id: string; plan_name: string; status: string; created_at: string; updated_at: string }; Insert: Record<string, unknown>; Update: Record<string, unknown> }
     }
   }

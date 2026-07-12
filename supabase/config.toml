@@ -397,6 +397,10 @@ import_map = "./functions/import_map.json"
 verify_jwt = false
 import_map = "./functions/import_map.json"
 
+[functions.proactive-cards]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
 [analytics]
 enabled = true
 port = 54327
