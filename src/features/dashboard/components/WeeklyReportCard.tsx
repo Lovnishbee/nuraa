@@ -20,7 +20,7 @@ export function WeeklyReportCard({ checkins = 0, status, onRetry }: StatefulWidg
         <p className="flex items-center gap-2 text-sm font-semibold text-forest"><CalendarDays size={16} strokeWidth={1.9} /> Ready after a few check-ins</p>
         <p className="mt-1 text-xs leading-5 text-ink/58">Available once your weekly data history is richer.</p>
       </div>
-      <Button asChild variant="outline" size="sm" className="mt-5"><Link to="/app/reports">View reports</Link></Button>
+      <Button asChild variant="outline" size="sm" className="mt-5"><Link to="/app/weekly-reflection">View weekly reflection</Link></Button>
     </DashboardCard>
   )
 }

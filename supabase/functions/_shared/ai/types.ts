@@ -8,13 +8,15 @@ import type {
   DailyBriefRewriteResponseSchema,
   ExplainScoreResponseSchema,
   PromptContractSchema,
+  WeeklyReflectionRewriteResponseSchema,
 } from './schemas.ts'
 
 export const PHASE4A_SCHEMA_VERSION = 'phase4a.v1'
 export const PHASE4B_SCHEMA_VERSION = 'phase4b.v1'
+export const PHASE_V_C_SCHEMA_VERSION = 'phase-v-c.v1'
 
-export type TaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today' | 'coach_follow_up'
-export type EntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach' | 'dashboard_ask_today' | 'dashboard_score' | 'coach_home' | 'coach_follow_up'
+export type TaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today' | 'coach_follow_up' | 'rewrite_weekly_reflection' | 'coach_from_weekly_reflection'
+export type EntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach' | 'dashboard_ask_today' | 'dashboard_score' | 'coach_home' | 'coach_follow_up' | 'weekly_reflection' | 'weekly_reflection_to_coach'
 export type DetailLevel = 'concise' | 'balanced' | 'detailed'
 export type SafetyRoute = 'S0_routine_wellness' | 'S1_medical_boundary' | 'S2_timely_professional_review' | 'S3_immediate_safety_or_emergency'
 export type GatewayStatus = 'completed' | 'fallback' | 'safety_routed' | 'disabled'
@@ -26,8 +28,9 @@ export type DailyBriefRewriteResponse = z.infer<typeof DailyBriefRewriteResponse
 export type ExplainScoreResponse = z.infer<typeof ExplainScoreResponseSchema>
 export type AskAboutTodayResponse = z.infer<typeof AskAboutTodayResponseSchema>
 export type CoachFollowUpResponse = z.infer<typeof CoachFollowUpResponseSchema>
+export type WeeklyReflectionRewriteResponse = z.infer<typeof WeeklyReflectionRewriteResponseSchema>
 export type PromptContract = z.infer<typeof PromptContractSchema>
-export type AIResponsePayload = DailyBriefRewriteResponse | ExplainScoreResponse | AskAboutTodayResponse | CoachFollowUpResponse
+export type AIResponsePayload = DailyBriefRewriteResponse | ExplainScoreResponse | AskAboutTodayResponse | CoachFollowUpResponse | WeeklyReflectionRewriteResponse
 
 export type SafeMeta = AIGatewayResponse['safeMeta']
 
@@ -50,6 +53,7 @@ export type RuntimeQueryBuilder = {
   eq: (column: string, value: unknown) => RuntimeQueryBuilder
   in: (column: string, values: unknown[]) => RuntimeQueryBuilder
   gte: (column: string, value: unknown) => RuntimeQueryBuilder
+  lte: (column: string, value: unknown) => RuntimeQueryBuilder
   lt: (column: string, value: unknown) => RuntimeQueryBuilder
   order: (column: string, options?: unknown) => RuntimeQueryBuilder
   limit: (count: number) => RuntimeQueryBuilder

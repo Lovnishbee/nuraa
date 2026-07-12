@@ -1,4 +1,4 @@
-import { PHASE4A_SCHEMA_VERSION, PHASE4B_SCHEMA_VERSION } from './types.ts'
+import { PHASE4A_SCHEMA_VERSION, PHASE4B_SCHEMA_VERSION, PHASE_V_C_SCHEMA_VERSION } from './types.ts'
 import type { PromptContract, TaskType } from './types.ts'
 
 const base = {
@@ -42,6 +42,28 @@ export const PROMPT_CONTRACTS: Record<TaskType, PromptContract> = {
     maxOutputTokens: 700,
     checksum: 'phase4b-coach-follow-up-v1',
   },
+  rewrite_weekly_reflection: {
+    ...base,
+    version: PHASE_V_C_SCHEMA_VERSION,
+    contextContractVersion: PHASE_V_C_SCHEMA_VERSION,
+    outputSchemaVersion: PHASE_V_C_SCHEMA_VERSION,
+    name: 'rewrite_weekly_reflection',
+    taskType: 'rewrite_weekly_reflection',
+    modelAlias: 'nuraa_fast_structured',
+    maxOutputTokens: 700,
+    checksum: 'phase-v-c-rewrite-weekly-reflection-v1',
+  },
+  coach_from_weekly_reflection: {
+    ...base,
+    version: PHASE_V_C_SCHEMA_VERSION,
+    contextContractVersion: PHASE_V_C_SCHEMA_VERSION,
+    outputSchemaVersion: PHASE4B_SCHEMA_VERSION,
+    name: 'coach_from_weekly_reflection',
+    taskType: 'coach_from_weekly_reflection',
+    modelAlias: 'nuraa_coach_balanced',
+    maxOutputTokens: 700,
+    checksum: 'phase-v-c-coach-from-weekly-reflection-v1',
+  },
 }
 
 export const TASK_FLAG_MAP: Record<TaskType, string> = {
@@ -49,6 +71,8 @@ export const TASK_FLAG_MAP: Record<TaskType, string> = {
   explain_score: 'ENABLE_AI_SCORE_EXPLANATION',
   ask_about_today: 'ENABLE_AI_ASK_ABOUT_TODAY',
   coach_follow_up: 'ENABLE_AI_COACH',
+  rewrite_weekly_reflection: 'ENABLE_WEEKLY_REFLECTION_AI_COPY',
+  coach_from_weekly_reflection: 'ENABLE_AI_COACH',
 }
 
 export function getPromptContract(taskType: TaskType): PromptContract {
@@ -61,6 +85,8 @@ export function getResponseSchemaName(taskType: TaskType): string {
     explain_score: 'ExplainScoreResponse',
     ask_about_today: 'AskAboutTodayResponse',
     coach_follow_up: 'CoachFollowUpResponse',
+    rewrite_weekly_reflection: 'WeeklyReflectionRewriteResponse',
+    coach_from_weekly_reflection: 'CoachFollowUpResponse',
   }[taskType]
 }
 
@@ -141,6 +167,37 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
       sourceReferences: sourceReferencesSchema(),
     },
   }
+  if (taskType === 'rewrite_weekly_reflection') return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['headline', 'weekAtGlance', 'whatChanged', 'whatSupportedYou', 'attentionAreas', 'nextWeekFocus', 'suggestedCoachPrompts', 'confidenceNote', 'sourceReferences'],
+    properties: {
+      headline: commonString,
+      weekAtGlance: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['summary', 'averageScore', 'scoreDirection', 'confidence'],
+        properties: {
+          summary: commonString,
+          averageScore: { type: ['integer', 'null'] },
+          scoreDirection: { type: 'string', enum: ['up', 'down', 'stable', 'insufficient_data'] },
+          confidence: { type: 'string', enum: ['high', 'moderate', 'low'] },
+        },
+      },
+      whatChanged: weeklyListItemSchema(),
+      whatSupportedYou: weeklyListItemSchema(),
+      attentionAreas: weeklyListItemSchema(),
+      nextWeekFocus: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'detail'],
+        properties: { title: commonString, detail: commonString },
+      },
+      suggestedCoachPrompts: { type: 'array', items: commonString },
+      confidenceNote: nullableString,
+      sourceReferences: sourceReferencesSchema(),
+    },
+  }
   return {
     type: 'object',
     additionalProperties: false,
@@ -175,6 +232,22 @@ export function getJsonSchemaForTask(taskType: TaskType): Record<string, unknown
   }
 }
 
+function weeklyListItemSchema() {
+  return {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['title', 'explanation', 'sourceReference'],
+      properties: {
+        title: { type: 'string' },
+        explanation: { type: 'string' },
+        sourceReference: { type: 'string' },
+      },
+    },
+  }
+}
+
 function primaryActionSchema() {
   return {
     type: ['object', 'null'],
@@ -192,5 +265,7 @@ function sourceReferencesSchema() {
 }
 
 export function getSchemaVersionForTask(taskType: TaskType): string {
-  return taskType === 'coach_follow_up' ? PHASE4B_SCHEMA_VERSION : PHASE4A_SCHEMA_VERSION
+  if (taskType === 'rewrite_weekly_reflection') return PHASE_V_C_SCHEMA_VERSION
+  if (taskType === 'coach_follow_up' || taskType === 'coach_from_weekly_reflection') return PHASE4B_SCHEMA_VERSION
+  return PHASE4A_SCHEMA_VERSION
 }

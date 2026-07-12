@@ -153,6 +153,7 @@ export function ReportsPage() {
         <p className="text-sm font-bold uppercase tracking-[.12em] text-nuraa">Future reports</p>
         <h2 className="display mt-3 text-3xl leading-tight text-forest">Personalised reports unlock as Nuraa learns more about your routine.</h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/64">Phase 3 only uses deterministic check-in intelligence. Health report uploads, AI analysis, OCR, body scans, and payments remain out of scope.</p>
+        <Button asChild className="mt-5" size="sm"><Link to="/app/weekly-reflection">Open weekly reflection</Link></Button>
       </Card>
     </DashboardLayout>
   )

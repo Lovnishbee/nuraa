@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export const TaskTypeSchema = z.enum(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up'])
-export const EntryPointSchema = z.enum(['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_ask_today', 'dashboard_score', 'coach_home', 'coach_follow_up'])
+export const TaskTypeSchema = z.enum(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up', 'rewrite_weekly_reflection', 'coach_from_weekly_reflection'])
+export const EntryPointSchema = z.enum(['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_ask_today', 'dashboard_score', 'coach_home', 'coach_follow_up', 'weekly_reflection', 'weekly_reflection_to_coach'])
 export const DetailLevelSchema = z.enum(['concise', 'balanced', 'detailed'])
 export const SafetyRouteSchema = z.enum(['S0_routine_wellness', 'S1_medical_boundary', 'S2_timely_professional_review', 'S3_immediate_safety_or_emergency'])
 
@@ -9,6 +9,7 @@ export const AIRequestInputSchema = z.object({
   taskType: TaskTypeSchema,
   entryPoint: EntryPointSchema,
   conversationId: z.string().uuid().optional(),
+  weeklyReflectionId: z.string().uuid().optional(),
   detailLevel: DetailLevelSchema.optional(),
   userInput: z.object({
     question: z.string().trim().min(1).max(500).optional(),
@@ -82,11 +83,43 @@ export const CoachFollowUpResponseSchema = z.object({
   sourceReferences: SourceReferencesSchema,
 }).strict()
 
+export const WeeklyReflectionRewriteResponseSchema = z.object({
+  headline: z.string().min(1).max(120),
+  weekAtGlance: z.object({
+    summary: z.string().min(1).max(600),
+    averageScore: z.number().int().min(0).max(100).nullable(),
+    scoreDirection: z.enum(['up', 'down', 'stable', 'insufficient_data']),
+    confidence: z.enum(['high', 'moderate', 'low']),
+  }).strict(),
+  whatChanged: z.array(z.object({
+    title: z.string().min(1).max(120),
+    explanation: z.string().min(1).max(280),
+    sourceReference: z.string().min(1).max(120),
+  }).strict()).max(3),
+  whatSupportedYou: z.array(z.object({
+    title: z.string().min(1).max(120),
+    explanation: z.string().min(1).max(280),
+    sourceReference: z.string().min(1).max(120),
+  }).strict()).max(3),
+  attentionAreas: z.array(z.object({
+    title: z.string().min(1).max(120),
+    explanation: z.string().min(1).max(280),
+    sourceReference: z.string().min(1).max(120),
+  }).strict()).max(2),
+  nextWeekFocus: z.object({
+    title: z.string().min(1).max(120),
+    detail: z.string().min(1).max(260),
+  }).strict(),
+  suggestedCoachPrompts: z.array(z.string().min(1).max(140)).max(3),
+  confidenceNote: z.string().max(280).nullable(),
+  sourceReferences: SourceReferencesSchema,
+}).strict()
+
 export const TimeOfDaySchema = z.enum(['morning', 'afternoon', 'evening', 'night'])
 
 export const ContextEnvelopeSchema = z.object({
   id: z.string().uuid(),
-  schemaVersion: z.enum(['phase4a.v1', 'phase4b.v1']),
+  schemaVersion: z.enum(['phase4a.v1', 'phase4b.v1', 'phase-v-c.v1']),
   taskType: TaskTypeSchema,
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
@@ -113,6 +146,7 @@ export const ContextEnvelopeSchema = z.object({
     createdAt: z.string().datetime(),
   }).strict()).max(6),
   explanationPaths: z.array(z.record(z.unknown())).max(8),
+  weeklyReflection: z.record(z.unknown()).optional(),
   safetyConstraints: z.object({
     medicalAdviceProhibited: z.literal(true),
     medicationAdviceProhibited: z.literal(true),
@@ -122,11 +156,11 @@ export const ContextEnvelopeSchema = z.object({
 
 export const PromptContractSchema = z.object({
   name: TaskTypeSchema,
-  version: z.enum(['phase4a.v1', 'phase4b.v1']),
+  version: z.enum(['phase4a.v1', 'phase4b.v1', 'phase-v-c.v1']),
   taskType: TaskTypeSchema,
   safetyPolicyVersion: z.literal('phase4a.v1'),
-  contextContractVersion: z.enum(['phase4a.v1', 'phase4b.v1']),
-  outputSchemaVersion: z.enum(['phase4a.v1', 'phase4b.v1']),
+  contextContractVersion: z.enum(['phase4a.v1', 'phase4b.v1', 'phase-v-c.v1']),
+  outputSchemaVersion: z.enum(['phase4a.v1', 'phase4b.v1', 'phase-v-c.v1']),
   maxOutputTokens: z.number().int().positive(),
   modelAlias: z.string().min(1),
   checksum: z.string().min(1),

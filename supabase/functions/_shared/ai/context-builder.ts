@@ -16,17 +16,20 @@ export async function buildContextEnvelope(options: {
 }): Promise<ContextEnvelope> {
   const now = options.now ?? new Date()
   const snapshot = await getRuntimeDataSnapshot(options.client, options.userId)
+  const weeklyReflection = options.input.weeklyReflectionId
+    ? await getWeeklyReflectionForContext(options.client, options.userId, options.input.weeklyReflectionId)
+    : null
   const coachMessages = options.input.conversationId
     ? await getRecentCoachMessages(options.client, options.input.conversationId, options.userId)
     : []
   const preferences = await getUserCoachingPreferences(options.client, options.userId)
   const timezone = snapshot.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const expiresAt = addMinutes(now, 15).toISOString()
-  const sourceReferences = buildSourceReferences(snapshot)
+  const sourceReferences = buildSourceReferences(snapshot, weeklyReflection)
   const priorities = buildPriorities(snapshot)
   const envelope: ContextEnvelope = {
     id: crypto.randomUUID(),
-    schemaVersion: options.input.entryPoint === 'internal_dev' ? 'phase4a.v1' : 'phase4b.v1',
+    schemaVersion: options.input.entryPoint === 'internal_dev' ? 'phase4a.v1' : options.input.weeklyReflectionId ? 'phase-v-c.v1' : 'phase4b.v1',
     taskType: options.input.taskType,
     createdAt: now.toISOString(),
     expiresAt,
@@ -65,6 +68,13 @@ export async function buildContextEnvelope(options: {
       createdAt: message.created_at,
     })),
     explanationPaths: buildExplanationPaths(snapshot),
+    weeklyReflection: weeklyReflection ? {
+      id: weeklyReflection.id,
+      weekStartDate: weeklyReflection.week_start_date,
+      weekEndDate: weeklyReflection.week_end_date,
+      summary_payload: weeklyReflection.summary_payload,
+      deterministic_metrics: weeklyReflection.deterministic_metrics,
+    } : undefined,
     safetyConstraints: {
       medicalAdviceProhibited: true,
       medicationAdviceProhibited: true,
@@ -155,8 +165,21 @@ function visibleMessageContent(message: { content: string | null; structured_pay
   return ''
 }
 
-function buildSourceReferences(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>): string[] {
+async function getWeeklyReflectionForContext(client: RuntimeSupabaseClient, userId: string, weeklyReflectionId: string) {
+  const result = await client.from('weekly_reflections')
+    .select('id, user_id, week_start_date, week_end_date, summary_payload, deterministic_metrics, source_references, status')
+    .eq('id', weeklyReflectionId)
+    .eq('user_id', userId)
+    .maybeSingle<Record<string, unknown>>()
+  if (result.error || !result.data) throw new Error('WEEKLY_REFLECTION_CONTEXT_NOT_FOUND')
+  return result.data
+}
+
+function buildSourceReferences(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>, weeklyReflection: Record<string, unknown> | null): string[] {
+  const weeklySourceReferences = readSourceReferences(weeklyReflection)
   return [
+    weeklyReflection ? `weekly_reflection:${readString(weeklyReflection, 'id')}` : null,
+    ...weeklySourceReferences,
     snapshot.score ? `score:${readString(snapshot.score, 'id')}` : null,
     snapshot.previousScore ? `score:${readString(snapshot.previousScore, 'id')}` : null,
     snapshot.signal ? `signal:${readString(snapshot.signal, 'id')}` : null,
@@ -164,6 +187,15 @@ function buildSourceReferences(snapshot: Awaited<ReturnType<typeof getRuntimeDat
     snapshot.factors ? `score_factors:${readString(snapshot.factors, 'id')}` : null,
     'safety_policy:phase4a.v1',
   ].filter((value): value is string => Boolean(value && !value.endsWith(':')))
+}
+
+function readSourceReferences(weeklyReflection: Record<string, unknown> | null): string[] {
+  const sourceReferences = weeklyReflection?.source_references
+  if (!Array.isArray(sourceReferences)) return []
+  return sourceReferences
+    .map((item) => item && typeof item === 'object' ? (item as Record<string, unknown>).sourceReference : null)
+    .filter((value): value is string => typeof value === 'string' && Boolean(value))
+    .slice(0, 12)
 }
 
 function buildPriorities(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>): Array<Record<string, unknown>> {

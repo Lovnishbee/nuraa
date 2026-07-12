@@ -34,6 +34,10 @@ export async function evaluateFeatureAccess(options: {
       const dashboardEntryEnabled = await isFeatureEnabled(options.client, options.env, 'ENABLE_AI_COACH_DASHBOARD_ENTRY')
       if (!dashboardEntryEnabled) return { enabled: false, reason: 'dashboard_entry_disabled' }
     }
+    if (options.input.entryPoint === 'weekly_reflection' || options.input.entryPoint === 'weekly_reflection_to_coach') {
+      const weeklyReflectionEnabled = await isFeatureEnabled(options.client, options.env, 'ENABLE_WEEKLY_REFLECTION')
+      if (!weeklyReflectionEnabled) return { enabled: false, reason: 'task_disabled' }
+    }
   }
 
   if (options.input.entryPoint !== 'internal_dev') {

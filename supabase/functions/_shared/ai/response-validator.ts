@@ -1,4 +1,4 @@
-import { AskAboutTodayResponseSchema, CoachFollowUpResponseSchema, DailyBriefRewriteResponseSchema, ExplainScoreResponseSchema } from './schemas.ts'
+import { AskAboutTodayResponseSchema, CoachFollowUpResponseSchema, DailyBriefRewriteResponseSchema, ExplainScoreResponseSchema, WeeklyReflectionRewriteResponseSchema } from './schemas.ts'
 import { getSchemaVersionForTask } from './contracts.ts'
 import type { AIResponsePayload, ContextEnvelope, TaskType, ValidationResult } from './types.ts'
 
@@ -25,7 +25,9 @@ function parseTaskPayload(taskType: TaskType, payload: unknown): ValidationResul
       ? ExplainScoreResponseSchema
       : taskType === 'ask_about_today'
         ? AskAboutTodayResponseSchema
-        : CoachFollowUpResponseSchema
+        : taskType === 'rewrite_weekly_reflection'
+          ? WeeklyReflectionRewriteResponseSchema
+          : CoachFollowUpResponseSchema
   const parsed = schema.safeParse(payload)
   if (!parsed.success) return { ok: false, errorCode: 'SCHEMA_VALIDATION_FAILED' }
   return { ok: true, payload: parsed.data as AIResponsePayload, schemaVersion: getSchemaVersionForTask(taskType) }
@@ -51,6 +53,23 @@ function validateBusinessRules(taskType: TaskType, payload: AIResponsePayload, c
   }
 
   if (taskType === 'coach_follow_up') {
+    const coach = payload as Extract<AIResponsePayload, { suggestedPrompts: string[]; factualBasis: Array<{ sourceReference: string }> }>
+    if (coach.suggestedPrompts.length > 3) return { ok: false, errorCode: 'TOO_MANY_SUGGESTED_PROMPTS' }
+    const basisReferences = coach.factualBasis.map((basis) => basis.sourceReference)
+    if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
+  }
+
+  if (taskType === 'rewrite_weekly_reflection') {
+    const weekly = payload as Extract<AIResponsePayload, { weekAtGlance: unknown }>
+    const references = [
+      ...weekly.whatChanged.map((item) => item.sourceReference),
+      ...weekly.whatSupportedYou.map((item) => item.sourceReference),
+      ...weekly.attentionAreas.map((item) => item.sourceReference),
+    ]
+    if (!validateSourceReferences(references, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
+  }
+
+  if (taskType === 'coach_from_weekly_reflection') {
     const coach = payload as Extract<AIResponsePayload, { suggestedPrompts: string[]; factualBasis: Array<{ sourceReference: string }> }>
     if (coach.suggestedPrompts.length > 3) return { ok: false, errorCode: 'TOO_MANY_SUGGESTED_PROMPTS' }
     const basisReferences = coach.factualBasis.map((basis) => basis.sourceReference)

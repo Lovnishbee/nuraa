@@ -53,6 +53,34 @@ export function buildFallback(taskType: TaskType, context: ContextEnvelope): AIR
     sourceReferences: references,
   }
 
+  if (taskType === 'rewrite_weekly_reflection') {
+    const weekly = readRecord(context.weeklyReflection)
+    const payload = readRecord(weekly.summary_payload)
+    const weekAtGlance = readRecord(payload.weekAtGlance)
+    const focus = readRecord(payload.nextWeekFocus)
+    return {
+      headline: readString(payload, 'headline', 'Your weekly reflection is ready.'),
+      weekAtGlance: {
+        summary: readString(weekAtGlance, 'summary', 'Nuraa summarised the week from available deterministic signals.'),
+        averageScore: typeof weekAtGlance.averageScore === 'number' ? weekAtGlance.averageScore : null,
+        scoreDirection: readScoreDirection(weekAtGlance.scoreDirection),
+        confidence: readConfidence(weekAtGlance.confidence),
+      },
+      whatChanged: readArray(payload.whatChanged),
+      whatSupportedYou: readArray(payload.whatSupportedYou),
+      attentionAreas: readArray(payload.attentionAreas),
+      nextWeekFocus: {
+        title: readString(focus, 'title', 'Keep one steady habit'),
+        detail: readString(focus, 'detail', 'Repeat the smallest useful action that helped this week.'),
+      },
+      suggestedCoachPrompts: readStringArray(payload.suggestedCoachPrompts).slice(0, 3).length
+        ? readStringArray(payload.suggestedCoachPrompts).slice(0, 3)
+        : ['What mattered most this week?'],
+      confidenceNote: readNullableString(payload, 'confidenceNote'),
+      sourceReferences: references,
+    }
+  }
+
   return {
     headline: 'Your health context is still available.',
     summary: 'Nuraa’s conversational guidance is temporarily unavailable. Here is what matters most today.',
@@ -71,6 +99,32 @@ export function buildFallback(taskType: TaskType, context: ContextEnvelope): AIR
     confidenceNote: context.confidenceNotes[0] ?? FALLBACK_COPY,
     sourceReferences: references,
   }
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function readArray(value: unknown): Array<{ title: string; explanation: string; sourceReference: string }> {
+  return Array.isArray(value) ? value.filter((item): item is { title: string; explanation: string; sourceReference: string } => Boolean(item && typeof item === 'object')) : []
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function readNullableString(value: unknown, key: string): string | null {
+  if (!value || typeof value !== 'object') return null
+  const item = (value as Record<string, unknown>)[key]
+  return typeof item === 'string' ? item : null
+}
+
+function readScoreDirection(value: unknown): 'up' | 'down' | 'stable' | 'insufficient_data' {
+  return value === 'up' || value === 'down' || value === 'stable' || value === 'insufficient_data' ? value : 'insufficient_data'
+}
+
+function readConfidence(value: unknown): 'high' | 'moderate' | 'low' {
+  return value === 'high' || value === 'moderate' || value === 'low' ? value : 'low'
 }
 
 function readString(value: unknown, key: string, fallback: string): string {

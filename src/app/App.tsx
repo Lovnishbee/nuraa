@@ -10,6 +10,7 @@ import { ProfilePage } from '@/features/profile/ProfilePage'
 import { ProactiveIntelligenceDevPage } from '@/features/proactive/dev/ProactiveIntelligenceDevPage'
 import { ProgressPage } from '@/features/progress/ProgressPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
+import { WeeklyReflectionPage } from '@/features/weekly-reflection/WeeklyReflectionPage'
 import { AppLayout } from '@/layouts/AppLayout'
 import { OnboardingLayout } from '@/layouts/OnboardingLayout'
 import { PublicLayout } from '@/layouts/PublicLayout'
@@ -48,6 +49,7 @@ export function App() {
               <Route path="/app/coach" element={<CoachPage />} />
               <Route path="/app/progress" element={<ProgressPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
+              <Route path="/app/weekly-reflection" element={<WeeklyReflectionPage />} />
               <Route path="/app/profile" element={<ProfilePage />} />
               <Route path="/dev/components" element={<ComponentPlaygroundPage />} />
               <Route path="/dev/ai-runtime" element={<AIRuntimeDevPage />} />

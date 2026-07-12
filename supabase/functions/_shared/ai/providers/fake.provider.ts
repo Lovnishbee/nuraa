@@ -54,6 +54,25 @@ function fixtureForResponseSchema(responseSchemaName: string): AIResponsePayload
     }
   }
 
+  if (responseSchemaName === 'WeeklyReflectionRewriteResponse') {
+    return {
+      headline: 'Your weekly reflection is ready.',
+      weekAtGlance: {
+        summary: 'This week appears broadly steady based on available deterministic Nuraa signals.',
+        averageScore: null,
+        scoreDirection: 'insufficient_data',
+        confidence: 'low',
+      },
+      whatChanged: [{ title: 'Your baseline is building', explanation: 'Nuraa has enough context to start reflecting on weekly patterns.', sourceReference: 'deterministic:nuraa' }],
+      whatSupportedYou: [],
+      attentionAreas: [{ title: 'Signal coverage is still building', explanation: 'More check-ins would improve confidence.', sourceReference: 'deterministic:nuraa' }],
+      nextWeekFocus: { title: 'Keep one steady habit', detail: 'Repeat the smallest useful action that helped this week.' },
+      suggestedCoachPrompts: ['What mattered most this week?'],
+      confidenceNote: 'This response came from FakeAIProvider.',
+      sourceReferences: ['deterministic:nuraa'],
+    }
+  }
+
   return {
     headline: 'Keep the next step simple.',
     summary: 'Based on the visible Nuraa context, a small steady action is the most useful response right now.',

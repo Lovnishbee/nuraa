@@ -237,6 +237,40 @@ export type ProactiveCardEvent = {
   event_payload: unknown
   created_at: string
 }
+export type WeeklyReflectionStatus = 'generated' | 'viewed' | 'dismissed' | 'converted_to_coach' | 'expired'
+export type WeeklyReflectionPayload = {
+  headline: string
+  weekAtGlance: {
+    summary: string
+    averageScore: number | null
+    scoreDirection: 'up' | 'down' | 'stable' | 'insufficient_data'
+    confidence: 'high' | 'moderate' | 'low'
+  }
+  whatChanged: Array<{ title: string; explanation: string; sourceReference: string }>
+  whatSupportedYou: Array<{ title: string; explanation: string; sourceReference: string }>
+  attentionAreas: Array<{ title: string; explanation: string; sourceReference: string }>
+  nextWeekFocus: { title: string; detail: string }
+  suggestedCoachPrompts: string[]
+  confidenceNote: string | null
+  sourceReferences: string[]
+}
+export type WeeklyReflection = {
+  id: string
+  user_id: string
+  week_start_date: string
+  week_end_date: string
+  status: WeeklyReflectionStatus
+  summary_payload: WeeklyReflectionPayload
+  deterministic_metrics: unknown
+  source_references: unknown
+  context_envelope_id: string | null
+  ai_execution_id: string | null
+  viewed_at: string | null
+  dismissed_at: string | null
+  converted_to_coach_at: string | null
+  created_at: string
+  updated_at: string
+}
 
 export type Database = {
   public: {
@@ -261,6 +295,7 @@ export type Database = {
       proactive_cards: { Row: ProactiveCard; Insert: Omit<ProactiveCard, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<ProactiveCard, 'id' | 'created_at' | 'updated_at'>>; Update: Partial<ProactiveCard> }
       proactive_card_feedback: { Row: ProactiveCardFeedback; Insert: Omit<ProactiveCardFeedback, 'id' | 'created_at'> & Partial<Pick<ProactiveCardFeedback, 'id' | 'created_at'>>; Update: Partial<ProactiveCardFeedback> }
       proactive_card_events: { Row: ProactiveCardEvent; Insert: Omit<ProactiveCardEvent, 'id' | 'created_at'> & Partial<Pick<ProactiveCardEvent, 'id' | 'created_at'>>; Update: Partial<ProactiveCardEvent> }
+      weekly_reflections: { Row: WeeklyReflection; Insert: Omit<WeeklyReflection, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<WeeklyReflection, 'id' | 'created_at' | 'updated_at'>>; Update: Partial<WeeklyReflection> }
       subscriptions: { Row: { id: string; user_id: string; plan_name: string; status: string; created_at: string; updated_at: string }; Insert: Record<string, unknown>; Update: Record<string, unknown> }
     }
   }
