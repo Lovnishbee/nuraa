@@ -148,8 +148,8 @@ function buildTopDataGaps(snapshot: WeeklyReflectionSnapshot, checkinCount: numb
 
 function buildTopPatterns(snapshot: WeeklyReflectionSnapshot, sources: WeeklyReflectionSourceReference[]) {
   const patterns = snapshot.insightEvents.slice(0, 3).map((event) => ({
-    title: readString(event, 'title', readString(event, 'rule_id', 'Weekly pattern')),
-    detail: readString(event, 'description', readString(event, 'recommendation', 'Nuraa noticed this from deterministic weekly signals.')),
+    title: safeWeeklyText(readString(event, 'title', readString(event, 'rule_id', 'Weekly pattern')), 'Weekly pattern', 120),
+    detail: safeWeeklyText(readString(event, 'description', readString(event, 'recommendation', 'Nuraa noticed this from deterministic weekly signals.')), 'Nuraa noticed this from deterministic weekly signals.', 280),
     sourceReference: `insight_event:${readString(event, 'id')}`,
   })).filter((item) => !item.sourceReference.endsWith(':'))
   if (patterns.length) return patterns
@@ -242,9 +242,28 @@ function formatFactor(factor: string | null) {
   return factor ? factor.replace('_score', '') : null
 }
 
+function safeWeeklyText(value: string, fallback: string, maxLength: number) {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized || containsProhibitedWeeklyLanguage(normalized)) return fallback
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`
+}
+
+function containsProhibitedWeeklyLanguage(value: string) {
+  return [
+    /\byou are at risk\b/i,
+    /\bthis caused\b/i,
+    /\byou have\b/i,
+    /\byou should take medication\b/i,
+    /\bthis indicates disease\b/i,
+    /\byou need treatment\b/i,
+    /\bdiagnos(e|is|ed)\b/i,
+    /\b(start|stop|change|increase|decrease)\s+(your\s+)?(medication|medicine|dose|dosage|tablet|insulin|metformin)\b/i,
+  ].some((pattern) => pattern.test(value))
+}
+
 function addDays(date: Date, days: number) {
   const next = new Date(date)
   next.setDate(next.getDate() + days)
   return next
 }
-

@@ -35,6 +35,24 @@ describe('Phase V-C weekly reflection metrics', () => {
     expect(payload.suggestedCoachPrompts.length).toBeLessThanOrEqual(3)
   })
 
+  it('sanitizes historical insight copy before weekly validation', () => {
+    const unsafeSnapshot = snapshot()
+    unsafeSnapshot.insightEvents = [{
+      id: '00000000-0000-4000-8000-000000000502',
+      event_date: '2026-07-13',
+      title: 'You have a very long pattern '.repeat(20),
+      description: 'This caused a concern and you need treatment. '.repeat(20),
+      recommendation: 'Keep the next step simple.',
+    }]
+    const metrics = buildWeeklyReflectionMetrics(unsafeSnapshot)
+    const payload = buildDeterministicWeeklyReflectionPayload(metrics)
+    const validation = validateWeeklyReflectionPayload(payload, metrics.sourceReferences.map((reference) => reference.sourceReference))
+
+    expect(validation.ok).toBe(true)
+    expect(payload.whatChanged[0]?.title).toBe('Weekly pattern')
+    expect(payload.whatChanged[0]?.explanation).toBe('Nuraa noticed this from deterministic weekly signals.')
+  })
+
   it('rejects unsafe weekly reflection claims', () => {
     const metrics = buildWeeklyReflectionMetrics(snapshot())
     const payload = buildDeterministicWeeklyReflectionPayload(metrics)
@@ -80,4 +98,3 @@ function row(date: string, score: number) {
 function factors(date: string, sleep: number, stress: number, recovery: number) {
   return { id: crypto.randomUUID(), score_date: date, sleep_score: sleep, stress_score: stress, recovery_score: recovery, activity_score: 70, nutrition_score: 70, hydration_score: 68, confidence: 70 }
 }
-
