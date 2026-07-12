@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent } from '@testing-library/react'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { getCoachEligibility } from '@/services/coachService'
 import { getProfileBundle } from '@/services/profile'
-import { getCurrentWeeklyReflection } from '@/services/weeklyReflectionService'
+import { generateWeeklyReflection, getCurrentWeeklyReflection } from '@/services/weeklyReflectionService'
 import { useAuthStore } from '@/stores/auth-store'
 import { WeeklyReflectionPage } from './WeeklyReflectionPage'
 
@@ -94,5 +95,18 @@ describe('WeeklyReflectionPage', () => {
     expect(await screen.findByRole('heading', { name: /your week looks broadly steady/i })).toBeInTheDocument()
     expect(screen.getByText(/one focus for next week/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /ask nuraa/i })).toBeInTheDocument()
+  })
+
+  it('shows a safe error when generation fails', async () => {
+    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getProfileBundle).mockResolvedValue({ profile: { full_name: 'Lovnish Bhatia', avatar_url: null } } as never)
+    vi.mocked(getCurrentWeeklyReflection).mockResolvedValue({ requestId: 'request-1', status: 'completed', reflection: null })
+    vi.mocked(generateWeeklyReflection).mockRejectedValue(new Error('WEEKLY_REFLECTION_FAILED'))
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /generate weekly reflection/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be generated/i)
   })
 })

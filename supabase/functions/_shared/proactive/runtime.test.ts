@@ -156,6 +156,42 @@ describe('Phase V-A proactive runtime', () => {
     expect(data.proactive_card_feedback).toHaveLength(1)
     expect(data.proactive_card_events.map((event) => event.event_type)).toEqual(expect.arrayContaining(['dismissed', 'feedback_submitted']))
   })
+
+  it('records shown, snoozed, and Coach handoff events for owned cards', async () => {
+    const data = baseData()
+    const client = fakeClient(data)
+    await handleProactiveEngineRequest({ client, env: {}, userId, body: { action: 'generate_cards' }, now })
+    const cardId = String(data.proactive_cards[0].id)
+
+    const shown = await handleProactiveEngineRequest({ client, env: {}, userId, body: { action: 'mark_shown', cardId }, now })
+    const snoozed = await handleProactiveEngineRequest({ client, env: {}, userId, body: { action: 'snooze_card', cardId }, now })
+    const handoff = await handleProactiveEngineRequest({ client, env: {}, userId, body: { action: 'start_coach_handoff', cardId }, now })
+
+    expect(shown.response).toMatchObject({ status: 'completed' })
+    expect(snoozed.response).toMatchObject({ status: 'completed' })
+    expect(handoff.response).toMatchObject({ status: 'completed' })
+    expect(data.proactive_cards[0].status).toBe('snoozed')
+    expect(data.proactive_card_events.map((event) => event.event_type)).toEqual(expect.arrayContaining(['shown', 'snoozed', 'coach_handoff_started']))
+  })
+
+  it('rejects cross-user card action attempts without writing events', async () => {
+    const data = baseData()
+    const client = fakeClient(data)
+    await handleProactiveEngineRequest({ client, env: {}, userId, body: { action: 'generate_cards' }, now })
+    const baselineEvents = data.proactive_card_events.length
+    const attackerUserId = '00000000-0000-4000-8000-000000000999'
+    data.ai_internal_testers.push({ user_id: attackerUserId, enabled: true, consent_granted: true })
+    data.user_ai_preferences.push({ user_id: attackerUserId, ai_coaching_enabled: true })
+
+    await expect(handleProactiveEngineRequest({
+      client,
+      env: {},
+      userId: attackerUserId,
+      body: { action: 'dismiss_card', cardId: String(data.proactive_cards[0].id) },
+      now,
+    })).rejects.toThrow('CARD_NOT_FOUND')
+    expect(data.proactive_card_events).toHaveLength(baselineEvents)
+  })
 })
 
 function baseData(options: {

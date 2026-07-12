@@ -37,7 +37,11 @@ Deno.serve(async (request: Request) => {
   try {
     const result = await handleWeeklyReflectionRequest({ client: serviceClient, env, userId, body })
     return json(result.response, result.httpStatus)
-  } catch {
+  } catch (error) {
+    console.error('[weekly-reflection-engine] request failed', {
+      userId,
+      errorCode: error instanceof Error ? error.message : 'UNKNOWN_ERROR',
+    })
     return json({ error: { code: 'WEEKLY_REFLECTION_FAILED', message: 'Weekly reflection request could not be completed safely.' } }, 500)
   }
 })
@@ -48,4 +52,3 @@ function json(body: unknown, status: number) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
-

@@ -45,6 +45,77 @@ describe('Phase V-C weekly reflection runtime', () => {
     expect(data.weekly_reflections[0].week_start_date).toBe('2026-07-07')
     expect(data.weekly_reflections[0].week_end_date).toBe('2026-07-13')
   })
+
+  it('supports viewed, dismissed, and Coach handoff lifecycle actions for owned reflections', async () => {
+    const data = baseData()
+    const client = fakeClient(data)
+    await handleWeeklyReflectionRequest({
+      client,
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'generate_weekly_reflection' },
+    })
+    const reflectionId = String(data.weekly_reflections[0].id)
+
+    const viewed = await handleWeeklyReflectionRequest({
+      client,
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'mark_viewed', reflectionId },
+    })
+    const dismissed = await handleWeeklyReflectionRequest({
+      client,
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'dismiss_reflection', reflectionId },
+    })
+    const handoff = await handleWeeklyReflectionRequest({
+      client,
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'start_coach_handoff', reflectionId },
+    })
+
+    expect(viewed.response).toMatchObject({ status: 'completed' })
+    expect(dismissed.response).toMatchObject({ status: 'completed' })
+    expect(handoff.response).toMatchObject({ status: 'completed' })
+    expect(data.weekly_reflections[0]).toMatchObject({
+      status: 'converted_to_coach',
+    })
+    expect(data.weekly_reflections[0].viewed_at).toBeTruthy()
+    expect(data.weekly_reflections[0].dismissed_at).toBeTruthy()
+    expect(data.weekly_reflections[0].converted_to_coach_at).toBeTruthy()
+  })
+
+  it('blocks cross-user lifecycle actions from touching another user reflection', async () => {
+    const data = baseData()
+    const client = fakeClient(data)
+    await handleWeeklyReflectionRequest({
+      client,
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'generate_weekly_reflection' },
+    })
+    const reflectionId = String(data.weekly_reflections[0].id)
+    const attackerUserId = '00000000-0000-4000-8000-000000000999'
+    data.ai_internal_testers.push({ user_id: attackerUserId, enabled: true, consent_granted: true })
+    data.user_ai_preferences.push({ user_id: attackerUserId, ai_coaching_enabled: true })
+
+    await expect(handleWeeklyReflectionRequest({
+      client,
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId: attackerUserId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'dismiss_reflection', reflectionId },
+    })).rejects.toThrow()
+    expect(data.weekly_reflections[0].status).toBe('generated')
+    expect(data.weekly_reflections[0].dismissed_at).toBeNull()
+  })
 })
 
 function baseData(options: { weeklyFlagEnabled?: boolean } = {}): Record<string, Array<Record<string, unknown>>> {
@@ -160,4 +231,3 @@ function applyFilters(rows: Array<Record<string, unknown>>, filters: Array<{ col
     return row[filter.column] === filter.value
   }))
 }
-

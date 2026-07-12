@@ -20,6 +20,38 @@ describe('Phase V-B proactive card engine', () => {
     expect(result.cards[0].evidence_refs[0]).toMatchObject({ sourceReference: 'health_signal:sleep_window' })
   })
 
+  it('bounds card copy and evidence before cards can reach the dashboard', () => {
+    const result = generateProactiveCards(snapshot({
+      existingCandidates: [
+        candidate('privacy_bounds', {
+          deterministic_title: 'A'.repeat(200),
+          deterministic_summary: 'B'.repeat(500),
+          recommended_action: { title: 'C'.repeat(120), detail: 'D'.repeat(240) },
+          evidence_json: {
+            summary: 'Safe aggregate evidence.',
+            confidence: 'high',
+            limitations: [],
+            evidence: Array.from({ length: 8 }, (_, index) => ({
+              label: `Signal ${index} `.repeat(12),
+              explanation: `Aggregated deterministic signal ${index} `.repeat(20),
+              sourceReference: `health_signal:privacy_bounds:${index}`.repeat(8),
+            })),
+          },
+          source_references: Array.from({ length: 8 }, (_, index) => `health_signal:privacy_bounds:${index}`),
+        }),
+      ],
+    }))
+
+    expect(result.cards).toHaveLength(1)
+    const [card] = result.cards
+    expect(card.title.length).toBeLessThanOrEqual(120)
+    expect(card.body.length).toBeLessThanOrEqual(320)
+    expect(card.primary_action_label?.length).toBeLessThanOrEqual(80)
+    expect(String(card.primary_action_payload.detail).length).toBeLessThanOrEqual(180)
+    expect(card.evidence_refs).toHaveLength(4)
+    expect(card.evidence_refs.every((reference) => reference.label.length <= 80 && reference.explanation.length <= 180 && reference.sourceReference.length <= 120)).toBe(true)
+  })
+
   it('enforces daily, category, attention, data-gap, and celebration caps', () => {
     const result = generateProactiveCards(snapshot({
       existingCandidates: [

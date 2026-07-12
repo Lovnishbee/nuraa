@@ -60,6 +60,17 @@ describe('Phase V-C weekly reflection metrics', () => {
 
     expect(validation).toEqual({ ok: false, errorCode: 'WEEKLY_PROHIBITED_CLAIM' })
   })
+
+  it('rejects weekly reflection source references that were not approved by deterministic metrics', () => {
+    const metrics = buildWeeklyReflectionMetrics(snapshot())
+    const payload = buildDeterministicWeeklyReflectionPayload(metrics)
+    const validation = validateWeeklyReflectionPayload({
+      ...payload,
+      whatChanged: [{ title: 'Unapproved source', explanation: 'This should not pass validation.', sourceReference: 'raw_prompt:unsafe' }],
+    }, metrics.sourceReferences.map((reference) => reference.sourceReference))
+
+    expect(validation).toEqual({ ok: false, errorCode: 'WEEKLY_INVALID_SOURCE_REFERENCE' })
+  })
 })
 
 function snapshot(): WeeklyReflectionSnapshot {

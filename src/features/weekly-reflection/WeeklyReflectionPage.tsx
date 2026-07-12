@@ -76,6 +76,11 @@ export function WeeklyReflectionPage() {
             {reflection.data?.status === 'disabled' ? (
               <p role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Weekly Reflection is not available for this beta user yet.</p>
             ) : null}
+            {generate.isError ? (
+              <p role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                Weekly Reflection could not be generated right now. Please try again after a minute.
+              </p>
+            ) : null}
             <Button className="mt-6" onClick={() => generate.mutate()} disabled={generate.isPending}>
               {generate.isPending ? 'Generating…' : 'Generate weekly reflection'} <ArrowRight size={16} />
             </Button>
@@ -175,4 +180,3 @@ function directionLabel(value: WeeklyReflectionPayload['weekAtGlance']['scoreDir
   if (value === 'insufficient_data') return 'Building'
   return value
 }
-
