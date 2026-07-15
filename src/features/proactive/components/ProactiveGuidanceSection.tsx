@@ -85,7 +85,10 @@ function ProactiveGuidanceCard({ card, coachEnabled }: { card: ProactiveCard; co
   })
   const coach = useMutation({
     mutationFn: () => startProactiveCardCoachHandoff(card.id),
-    onSuccess: () => navigate(`/app/coach?action=ask_today&card=${card.id}`),
+    onSuccess: (response) => {
+      if (response.status !== 'completed') return
+      navigate(`/app/coach?action=coach_from_card&card=${card.id}`)
+    },
   })
 
   const busy = dismiss.isPending || snooze.isPending || feedback.isPending || coach.isPending

@@ -16,6 +16,7 @@ import {
   sendCoachFollowUp,
   setCoachConsent,
   startAskAboutToday,
+  startCoachFromCard,
   startCoachHome,
   startScoreExplanation,
   updateCoachResponseDetail,
@@ -38,6 +39,7 @@ export function CoachPage() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const requestedAction = searchParams.get('action')
+  const requestedCardId = searchParams.get('card')
   const [conversationId, setConversationId] = useState<string | null>(searchParams.get('conversation'))
   const [optimisticMessages, setOptimisticMessages] = useState<CoachMessageView[]>([])
   const startedActionRef = useRef<string | null>(null)
@@ -56,6 +58,7 @@ export function CoachPage() {
     mutationFn: async (action: string | null) => {
       if (action === 'explain_score') return startScoreExplanation(detailLevel)
       if (action === 'ask_today') return startAskAboutToday(detailLevel)
+      if (action === 'coach_from_card' && requestedCardId) return startCoachFromCard(requestedCardId, detailLevel)
       return startCoachHome(detailLevel)
     },
     onSuccess: async (response) => {
@@ -93,11 +96,11 @@ export function CoachPage() {
   useEffect(() => {
     if (!eligibility.data?.coachEnabled) return
     if (conversationId || startMutation.isPending) return
-    const actionKey = requestedAction || 'coach_home'
+    const actionKey = `${requestedAction || 'coach_home'}:${requestedCardId ?? ''}`
     if (startedActionRef.current === actionKey) return
     startedActionRef.current = actionKey
     startMutation.mutate(requestedAction)
-  }, [conversationId, eligibility.data?.coachEnabled, requestedAction, startMutation])
+  }, [conversationId, eligibility.data?.coachEnabled, requestedAction, requestedCardId, startMutation])
 
   if (!userId) return <Navigate to="/login" replace />
   if (eligibility.isLoading) return <div className="p-6 sm:p-10"><LoadingSkeleton className="h-96" /></div>

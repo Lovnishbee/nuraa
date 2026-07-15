@@ -64,6 +64,17 @@ export const PROMPT_CONTRACTS: Record<TaskType, PromptContract> = {
     maxOutputTokens: 700,
     checksum: 'phase-v-c-coach-from-weekly-reflection-v1',
   },
+  coach_from_card: {
+    ...base,
+    version: PHASE4B_SCHEMA_VERSION,
+    contextContractVersion: PHASE4B_SCHEMA_VERSION,
+    outputSchemaVersion: PHASE4B_SCHEMA_VERSION,
+    name: 'coach_from_card',
+    taskType: 'coach_from_card',
+    modelAlias: 'nuraa_coach_balanced',
+    maxOutputTokens: 700,
+    checksum: 'phase-v-b-coach-from-card-v1',
+  },
 }
 
 export const TASK_FLAG_MAP: Record<TaskType, string> = {
@@ -73,6 +84,7 @@ export const TASK_FLAG_MAP: Record<TaskType, string> = {
   coach_follow_up: 'ENABLE_AI_COACH',
   rewrite_weekly_reflection: 'ENABLE_WEEKLY_REFLECTION_AI_COPY',
   coach_from_weekly_reflection: 'ENABLE_AI_COACH',
+  coach_from_card: 'ENABLE_CARD_TO_COACH',
 }
 
 export function getPromptContract(taskType: TaskType): PromptContract {
@@ -87,6 +99,7 @@ export function getResponseSchemaName(taskType: TaskType): string {
     coach_follow_up: 'CoachFollowUpResponse',
     rewrite_weekly_reflection: 'WeeklyReflectionRewriteResponse',
     coach_from_weekly_reflection: 'CoachFollowUpResponse',
+    coach_from_card: 'CoachFollowUpResponse',
   }[taskType]
 }
 
@@ -266,6 +279,6 @@ function sourceReferencesSchema() {
 
 export function getSchemaVersionForTask(taskType: TaskType): string {
   if (taskType === 'rewrite_weekly_reflection') return PHASE_V_C_SCHEMA_VERSION
-  if (taskType === 'coach_follow_up' || taskType === 'coach_from_weekly_reflection') return PHASE4B_SCHEMA_VERSION
+  if (taskType === 'coach_follow_up' || taskType === 'coach_from_weekly_reflection' || taskType === 'coach_from_card') return PHASE4B_SCHEMA_VERSION
   return PHASE4A_SCHEMA_VERSION
 }

@@ -19,13 +19,16 @@ export async function buildContextEnvelope(options: {
   const weeklyReflection = options.input.weeklyReflectionId
     ? await getWeeklyReflectionForContext(options.client, options.userId, options.input.weeklyReflectionId)
     : null
+  const proactiveCard = options.input.cardId
+    ? await getProactiveCardForContext(options.client, options.userId, options.input.cardId)
+    : null
   const coachMessages = options.input.conversationId
     ? await getRecentCoachMessages(options.client, options.input.conversationId, options.userId)
     : []
   const preferences = await getUserCoachingPreferences(options.client, options.userId)
   const timezone = snapshot.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const expiresAt = addMinutes(now, 15).toISOString()
-  const sourceReferences = buildSourceReferences(snapshot, weeklyReflection)
+  const sourceReferences = buildSourceReferences(snapshot, weeklyReflection, proactiveCard)
   const priorities = buildPriorities(snapshot)
   const envelope: ContextEnvelope = {
     id: crypto.randomUUID(),
@@ -74,6 +77,23 @@ export async function buildContextEnvelope(options: {
       weekEndDate: weeklyReflection.week_end_date,
       summary_payload: weeklyReflection.summary_payload,
       deterministic_metrics: weeklyReflection.deterministic_metrics,
+    } : undefined,
+    proactiveCard: proactiveCard ? {
+      id: proactiveCard.id,
+      healthDate: proactiveCard.health_date,
+      candidateId: proactiveCard.candidate_id,
+      cardType: proactiveCard.card_type,
+      category: proactiveCard.category,
+      severity: proactiveCard.severity,
+      title: proactiveCard.title,
+      body: proactiveCard.body,
+      primaryActionLabel: proactiveCard.primary_action_label,
+      primaryActionType: proactiveCard.primary_action_type,
+      primaryActionPayload: proactiveCard.primary_action_payload,
+      confidenceScore: proactiveCard.confidence_score,
+      confidenceLabel: proactiveCard.confidence_label,
+      evidenceRefs: readEvidenceReferences(proactiveCard),
+      copySource: proactiveCard.copy_source,
     } : undefined,
     safetyConstraints: {
       medicalAdviceProhibited: true,
@@ -175,18 +195,39 @@ async function getWeeklyReflectionForContext(client: RuntimeSupabaseClient, user
   return result.data
 }
 
-function buildSourceReferences(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>, weeklyReflection: Record<string, unknown> | null): string[] {
+async function getProactiveCardForContext(client: RuntimeSupabaseClient, userId: string, cardId: string) {
+  const result = await client.from('proactive_cards')
+    .select('id, user_id, candidate_id, health_date, card_type, category, severity, title, body, primary_action_label, primary_action_type, primary_action_payload, evidence_refs, confidence_score, confidence_label, status, source_engine_version, copy_source')
+    .eq('id', cardId)
+    .eq('user_id', userId)
+    .maybeSingle<Record<string, unknown>>()
+  if (result.error || !result.data) throw new Error('PROACTIVE_CARD_CONTEXT_NOT_FOUND')
+  const status = readString(result.data, 'status')
+  if (status === 'dismissed' || status === 'expired' || status === 'archived') throw new Error('PROACTIVE_CARD_CONTEXT_NOT_AVAILABLE')
+  return result.data
+}
+
+function buildSourceReferences(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>, weeklyReflection: Record<string, unknown> | null, proactiveCard: Record<string, unknown> | null): string[] {
   const weeklySourceReferences = readSourceReferences(weeklyReflection)
+  const proactiveCardReferences = proactiveCard ? [
+    `proactive_card:${readString(proactiveCard, 'id')}`,
+    readString(proactiveCard, 'candidate_id') ? `insight_candidate:${readString(proactiveCard, 'candidate_id')}` : null,
+    ...readEvidenceReferences(proactiveCard).map((item) => item.sourceReference),
+  ] : []
   return [
     weeklyReflection ? `weekly_reflection:${readString(weeklyReflection, 'id')}` : null,
     ...weeklySourceReferences,
+    ...proactiveCardReferences,
     snapshot.score ? `score:${readString(snapshot.score, 'id')}` : null,
     snapshot.previousScore ? `score:${readString(snapshot.previousScore, 'id')}` : null,
     snapshot.signal ? `signal:${readString(snapshot.signal, 'id')}` : null,
     snapshot.brief ? `daily_brief:${snapshot.brief.id}` : null,
     snapshot.factors ? `score_factors:${readString(snapshot.factors, 'id')}` : null,
     'safety_policy:phase4a.v1',
-  ].filter((value): value is string => Boolean(value && !value.endsWith(':')))
+  ]
+    .filter((value): value is string => Boolean(value && !value.endsWith(':')))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .slice(0, 12)
 }
 
 function readSourceReferences(weeklyReflection: Record<string, unknown> | null): string[] {
@@ -196,6 +237,20 @@ function readSourceReferences(weeklyReflection: Record<string, unknown> | null):
     .map((item) => item && typeof item === 'object' ? (item as Record<string, unknown>).sourceReference : null)
     .filter((value): value is string => typeof value === 'string' && Boolean(value))
     .slice(0, 12)
+}
+
+function readEvidenceReferences(proactiveCard: Record<string, unknown>): Array<{ label: string; explanation: string; sourceReference: string }> {
+  const evidenceRefs = proactiveCard.evidence_refs
+  if (!Array.isArray(evidenceRefs)) return []
+  return evidenceRefs
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+    .map((item) => ({
+      label: readString(item, 'label', 'Card evidence'),
+      explanation: readString(item, 'explanation', 'Included as safe deterministic card evidence.'),
+      sourceReference: readString(item, 'sourceReference'),
+    }))
+    .filter((item) => Boolean(item.sourceReference))
+    .slice(0, 4)
 }
 
 function buildPriorities(snapshot: Awaited<ReturnType<typeof getRuntimeDataSnapshot>>): Array<Record<string, unknown>> {

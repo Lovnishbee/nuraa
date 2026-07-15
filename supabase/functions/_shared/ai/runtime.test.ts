@@ -255,6 +255,63 @@ describe('AI gateway runtime hardening', () => {
     expect(data.ai_executions).toHaveLength(2)
     expect(data.ai_executions.at(-1)?.idempotency_key).toBeNull()
   })
+
+  it('starts Coach from an actual user-owned proactive card context', async () => {
+    const data = baseEnabledData()
+    const provider = providerWithPayload(payloadForTask('coach_from_card'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForTask('coach_from_card'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: {
+        taskType: 'coach_from_card',
+        entryPoint: 'proactive_card_to_coach',
+        cardId: '00000000-0000-4000-8000-000000000701',
+        idempotencyKey: 'card-to-coach-test',
+      },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(200)
+    expect(result.response.status).toBe('completed')
+    expect(result.response.conversationId).toBeTruthy()
+    expect(provider.generateStructured).toHaveBeenCalledTimes(1)
+    expect(data.coach_conversations.at(-1)?.entry_point).toBe('proactive_card_to_coach')
+    expect(data.coach_conversations.at(-1)?.initial_task_type).toBe('coach_from_card')
+    expect(data.context_items.some((item) => item.category === 'proactive_card' && item.source_reference_id === '00000000-0000-4000-8000-000000000701')).toBe(true)
+    expect(data.coach_messages.at(-1)?.task_type).toBe('coach_from_card')
+    expect(data.coach_messages.at(-1)?.source_references).toContain('proactive_card:00000000-0000-4000-8000-000000000701')
+  })
+
+  it('blocks card-to-Coach before context creation when the handoff flag is disabled', async () => {
+    const data = baseEnabledData()
+    const flag = data.ai_feature_flags.find((row) => row.feature_name === 'ENABLE_CARD_TO_COACH')
+    if (flag) flag.enabled = false
+    const provider = providerWithPayload(payloadForTask('coach_from_card'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForTask('coach_from_card'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: {
+        taskType: 'coach_from_card',
+        entryPoint: 'proactive_card_to_coach',
+        cardId: '00000000-0000-4000-8000-000000000701',
+      },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(200)
+    expect(result.response.status).toBe('disabled')
+    expect(provider.generateStructured).not.toHaveBeenCalled()
+    expect(data.context_requests).toHaveLength(0)
+    expect(data.context_envelopes).toHaveLength(0)
+    expect(data.coach_conversations).toHaveLength(0)
+    expect(data.ai_executions).toHaveLength(0)
+  })
 })
 
 function envForTask(taskType: TaskType): Record<string, string | undefined> {
@@ -264,6 +321,8 @@ function envForTask(taskType: TaskType): Record<string, string | undefined> {
     ENABLE_AI_DAILY_BRIEF: taskType === 'rewrite_daily_brief' ? 'true' : undefined,
     ENABLE_AI_SCORE_EXPLANATION: taskType === 'explain_score' ? 'true' : undefined,
     ENABLE_AI_ASK_ABOUT_TODAY: taskType === 'ask_about_today' ? 'true' : undefined,
+    ENABLE_AI_COACH: taskType === 'coach_from_card' ? 'true' : undefined,
+    ENABLE_CARD_TO_COACH: taskType === 'coach_from_card' ? 'true' : undefined,
     AI_INTERNAL_ACCESS_REQUIRED: 'true',
     AI_RATE_LIMIT_MAX_REQUESTS: '10',
     AI_RATE_LIMIT_WINDOW_SECONDS: '60',
@@ -279,12 +338,16 @@ function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } =
       { feature_name: 'ENABLE_AI_DAILY_BRIEF', enabled: true },
       { feature_name: 'ENABLE_AI_SCORE_EXPLANATION', enabled: true },
       { feature_name: 'ENABLE_AI_ASK_ABOUT_TODAY', enabled: true },
+      { feature_name: 'ENABLE_AI_COACH', enabled: true },
+      { feature_name: 'ENABLE_CARD_TO_COACH', enabled: true },
     ],
     ai_internal_testers: options.testers ?? [{ user_id: userId, enabled: true, consent_granted: true }],
+    user_ai_preferences: [{ user_id: userId, ai_coaching_enabled: true, response_detail: 'balanced' }],
     prompt_contracts: [
       { id: 'contract-brief', name: 'rewrite_daily_brief', version: 'phase4a.v1', task_type: 'rewrite_daily_brief' },
       { id: 'contract-score', name: 'explain_score', version: 'phase4a.v1', task_type: 'explain_score' },
       { id: 'contract-today', name: 'ask_about_today', version: 'phase4a.v1', task_type: 'ask_about_today' },
+      { id: 'contract-card', name: 'coach_from_card', version: 'phase4b.v1', task_type: 'coach_from_card' },
     ],
     ai_model_policies: [
       { id: 'policy-fast', alias: 'nuraa_fast_structured', model_env_key: 'AI_MODEL_FAST_STRUCTURED', status: 'active' },
@@ -300,6 +363,28 @@ function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } =
     score_factors: [{ id: '00000000-0000-4000-8000-000000000401', user_id: userId, score_date: '2026-06-29', sleep_score: 80, stress_score: 72, recovery_score: 75, activity_score: 70, nutrition_score: 70, hydration_score: 70 }],
     insight_events: [{ id: '00000000-0000-4000-8000-000000000501', user_id: userId, event_date: '2026-06-29', title: 'Hydrate steadily', recommendation: 'Keep water nearby.', category: 'hydration' }],
     user_goals: [{ id: '00000000-0000-4000-8000-000000000601', user_id: userId, goal_label: 'Improve Energy', priority: 1, status: 'active' }],
+    proactive_cards: [{
+      id: '00000000-0000-4000-8000-000000000701',
+      user_id: userId,
+      candidate_id: '00000000-0000-4000-8000-000000000702',
+      health_date: '2026-06-29',
+      card_type: 'opportunity',
+      category: 'hydration',
+      severity: 'low',
+      title: 'Hydrate earlier today',
+      body: 'Your recent pattern suggests water intake is the simplest focus.',
+      primary_action_label: 'Keep water visible',
+      primary_action_type: 'habit',
+      primary_action_payload: { detail: 'Place a bottle near your desk.' },
+      evidence_refs: [{ label: 'Hydration signal', explanation: 'Hydration was a relevant factor.', sourceReference: 'score_factors:00000000-0000-4000-8000-000000000401' }],
+      confidence_score: 72,
+      confidence_label: 'moderate',
+      status: 'active',
+      source_engine_version: 'phase-v-b.v1',
+      copy_source: 'deterministic',
+    }],
+    coach_conversations: [],
+    coach_messages: [],
     context_requests: [],
     context_envelopes: [],
     context_items: [],
@@ -331,6 +416,22 @@ function payloadForTask(taskType: TaskType): AIResponsePayload {
       confidenceNote: 'Based on deterministic Nuraa context.',
       followUpQuestions: ['What should I focus on today?'],
       sourceReferences: ['score:00000000-0000-4000-8000-000000000101', 'score_factors:00000000-0000-4000-8000-000000000401'],
+    }
+  }
+  if (taskType === 'coach_from_card') {
+    return {
+      headline: 'Hydrate earlier today',
+      summary: 'This card is pointing to hydration because it is the safest practical focus available from your current deterministic context.',
+      factualBasis: [
+        { label: 'Proactive card', sourceReference: 'proactive_card:00000000-0000-4000-8000-000000000701' },
+        { label: 'Score factors', sourceReference: 'score_factors:00000000-0000-4000-8000-000000000401' },
+      ],
+      interpretations: [{ statement: 'Hydration is a practical lever today.', confidence: 'moderate' }],
+      primaryAction: { title: 'Keep water visible', detail: 'Place a bottle near your desk.' },
+      clarificationQuestion: null,
+      suggestedPrompts: ['Why is this card showing today?'],
+      confidenceNote: 'Based on deterministic Nuraa context.',
+      sourceReferences: ['proactive_card:00000000-0000-4000-8000-000000000701', 'score_factors:00000000-0000-4000-8000-000000000401'],
     }
   }
   return {

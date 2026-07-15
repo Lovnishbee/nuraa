@@ -52,7 +52,7 @@ function validateBusinessRules(taskType: TaskType, payload: AIResponsePayload, c
     if (!validateSourceReferences(basisReferences, context)) return { ok: false, errorCode: 'INVALID_SOURCE_REFERENCE' }
   }
 
-  if (taskType === 'coach_follow_up') {
+  if (taskType === 'coach_follow_up' || taskType === 'coach_from_card') {
     const coach = payload as Extract<AIResponsePayload, { suggestedPrompts: string[]; factualBasis: Array<{ sourceReference: string }> }>
     if (coach.suggestedPrompts.length > 3) return { ok: false, errorCode: 'TOO_MANY_SUGGESTED_PROMPTS' }
     const basisReferences = coach.factualBasis.map((basis) => basis.sourceReference)

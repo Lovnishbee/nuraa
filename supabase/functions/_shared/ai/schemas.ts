@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export const TaskTypeSchema = z.enum(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up', 'rewrite_weekly_reflection', 'coach_from_weekly_reflection'])
-export const EntryPointSchema = z.enum(['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_ask_today', 'dashboard_score', 'coach_home', 'coach_follow_up', 'weekly_reflection', 'weekly_reflection_to_coach'])
+export const TaskTypeSchema = z.enum(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up', 'rewrite_weekly_reflection', 'coach_from_weekly_reflection', 'coach_from_card'])
+export const EntryPointSchema = z.enum(['internal_dev', 'future_dashboard', 'future_coach', 'dashboard_ask_today', 'dashboard_score', 'coach_home', 'coach_follow_up', 'weekly_reflection', 'weekly_reflection_to_coach', 'proactive_card_to_coach'])
 export const DetailLevelSchema = z.enum(['concise', 'balanced', 'detailed'])
 export const SafetyRouteSchema = z.enum(['S0_routine_wellness', 'S1_medical_boundary', 'S2_timely_professional_review', 'S3_immediate_safety_or_emergency'])
 
@@ -10,6 +10,7 @@ export const AIRequestInputSchema = z.object({
   entryPoint: EntryPointSchema,
   conversationId: z.string().uuid().optional(),
   weeklyReflectionId: z.string().uuid().optional(),
+  cardId: z.string().uuid().optional(),
   detailLevel: DetailLevelSchema.optional(),
   userInput: z.object({
     question: z.string().trim().min(1).max(500).optional(),
@@ -147,6 +148,7 @@ export const ContextEnvelopeSchema = z.object({
   }).strict()).max(6),
   explanationPaths: z.array(z.record(z.unknown())).max(8),
   weeklyReflection: z.record(z.unknown()).optional(),
+  proactiveCard: z.record(z.unknown()).optional(),
   safetyConstraints: z.object({
     medicalAdviceProhibited: z.literal(true),
     medicationAdviceProhibited: z.literal(true),

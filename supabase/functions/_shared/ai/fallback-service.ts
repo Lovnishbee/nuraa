@@ -81,6 +81,41 @@ export function buildFallback(taskType: TaskType, context: ContextEnvelope): AIR
     }
   }
 
+  if (taskType === 'coach_from_card') {
+    const card = readRecord(context.proactiveCard)
+    const evidence = Array.isArray(card.evidenceRefs) ? card.evidenceRefs : []
+    const cardReference = typeof card.id === 'string' ? `proactive_card:${card.id}` : references[0]
+    const sourceReferences = [cardReference, ...references].filter((value, index, values) => values.indexOf(value) === index).slice(0, 6)
+    const cardTitle = readString(card, 'title', actionTitle)
+    const cardBody = readString(card, 'body', actionDetail)
+    const primaryActionTitle = readString(card, 'primaryActionLabel', actionTitle)
+    const primaryActionPayload = readRecord(card.primaryActionPayload)
+    return {
+      headline: cardTitle,
+      summary: cardBody,
+      factualBasis: (evidence as Array<Record<string, unknown>>).slice(0, 2).map((item) => ({
+        label: readString(item, 'label', 'Proactive card evidence'),
+        sourceReference: readString(item, 'sourceReference', cardReference),
+      })),
+      interpretations: [{
+        statement: 'This guidance is grounded in the proactive card and deterministic Nuraa context.',
+        confidence: 'moderate' as const,
+      }],
+      primaryAction: {
+        title: primaryActionTitle,
+        detail: readString(primaryActionPayload, 'detail', actionDetail),
+      },
+      clarificationQuestion: null,
+      suggestedPrompts: [
+        'Why is this card showing today?',
+        'What is one simple step?',
+        'What data would improve this guidance?',
+      ],
+      confidenceNote: context.confidenceNotes[0] ?? FALLBACK_COPY,
+      sourceReferences,
+    }
+  }
+
   return {
     headline: 'Your health context is still available.',
     summary: 'Nuraa’s conversational guidance is temporarily unavailable. Here is what matters most today.',

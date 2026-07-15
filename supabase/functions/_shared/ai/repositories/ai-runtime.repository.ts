@@ -1,7 +1,8 @@
 import type { ModelPolicy, PromptContractRow, RuntimeSupabaseClient, TaskType } from '../types.ts'
+import { getPromptContract } from '../contracts.ts'
 
 export async function getPromptContractRow(client: RuntimeSupabaseClient, taskType: TaskType): Promise<PromptContractRow> {
-  const result = await client.from('prompt_contracts').select('*').eq('task_type', taskType).eq('version', 'phase4a.v1').maybeSingle<PromptContractRow>()
+  const result = await client.from('prompt_contracts').select('*').eq('task_type', taskType).eq('version', getPromptContract(taskType).version).maybeSingle<PromptContractRow>()
   if (result.error || !result.data) throw new Error('PROMPT_CONTRACT_NOT_FOUND')
   return result.data
 }

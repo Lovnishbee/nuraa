@@ -44,7 +44,7 @@ describe('AI runtime schemas', () => {
     expect(result.success).toBe(true)
   })
 
-  it.each<TaskType>(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up', 'rewrite_weekly_reflection', 'coach_from_weekly_reflection'])('emits strict OpenAI-compatible JSON schema for %s', (taskType) => {
+  it.each<TaskType>(['rewrite_daily_brief', 'explain_score', 'ask_about_today', 'coach_follow_up', 'rewrite_weekly_reflection', 'coach_from_weekly_reflection', 'coach_from_card'])('emits strict OpenAI-compatible JSON schema for %s', (taskType) => {
     const schema = getJsonSchemaForTask(taskType)
     const objectSchemas = collectObjectSchemas(schema)
 

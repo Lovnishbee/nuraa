@@ -1,5 +1,5 @@
-export type AITaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today' | 'coach_follow_up' | 'rewrite_weekly_reflection' | 'coach_from_weekly_reflection'
-export type AIEntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach' | 'dashboard_ask_today' | 'dashboard_score' | 'coach_home' | 'coach_follow_up' | 'weekly_reflection' | 'weekly_reflection_to_coach'
+export type AITaskType = 'rewrite_daily_brief' | 'explain_score' | 'ask_about_today' | 'coach_follow_up' | 'rewrite_weekly_reflection' | 'coach_from_weekly_reflection' | 'coach_from_card'
+export type AIEntryPoint = 'internal_dev' | 'future_dashboard' | 'future_coach' | 'dashboard_ask_today' | 'dashboard_score' | 'coach_home' | 'coach_follow_up' | 'weekly_reflection' | 'weekly_reflection_to_coach' | 'proactive_card_to_coach'
 export type AIDetailLevel = 'concise' | 'balanced' | 'detailed'
 
 export type AIRequestInput = {
@@ -7,6 +7,7 @@ export type AIRequestInput = {
   entryPoint: AIEntryPoint
   conversationId?: string
   weeklyReflectionId?: string
+  cardId?: string
   detailLevel?: AIDetailLevel
   userInput?: {
     question?: string

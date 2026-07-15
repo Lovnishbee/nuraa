@@ -208,7 +208,7 @@ async function prepareCoachPersistence(client: RuntimeSupabaseClient, userId: st
     })
     return { conversationId: conversation.id }
   }
-  if (input.taskType === 'ask_about_today' || input.taskType === 'explain_score' || input.taskType === 'coach_from_weekly_reflection') {
+  if (input.taskType === 'ask_about_today' || input.taskType === 'explain_score' || input.taskType === 'coach_from_weekly_reflection' || input.taskType === 'coach_from_card') {
     await pauseActiveCoachConversations(client, userId, nowIso)
     const conversation = await createCoachConversation(client, { userId, entryPoint: input.entryPoint, taskType: input.taskType })
     return { conversationId: conversation.id }

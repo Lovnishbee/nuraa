@@ -110,6 +110,16 @@ export async function startCoachHome(detailLevel: AIDetailLevel): Promise<AIGate
   })
 }
 
+export async function startCoachFromCard(cardId: string, detailLevel: AIDetailLevel): Promise<AIGatewayResponse> {
+  return invokeAIGateway({
+    taskType: 'coach_from_card',
+    entryPoint: 'proactive_card_to_coach',
+    cardId,
+    detailLevel,
+    idempotencyKey: `card_${cardId}_${crypto.randomUUID()}`,
+  })
+}
+
 export async function sendCoachFollowUp(conversationId: string, question: string, detailLevel: AIDetailLevel, idempotencyKey = `follow_${crypto.randomUUID()}`): Promise<AIGatewayResponse> {
   return invokeAIGateway({
     taskType: 'coach_follow_up',

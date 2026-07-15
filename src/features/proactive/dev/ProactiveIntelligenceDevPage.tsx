@@ -56,7 +56,7 @@ export function ProactiveIntelligenceDevPage() {
         <div>
           <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Internal dev</p>
           <h1 className="display mt-2 text-4xl leading-none text-forest">Proactive intelligence review.</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">Reviews deterministic Phase V-A insight candidates only. No dashboard cards, AI copy, weekly reflections, or Coach continuations are created here.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">Reviews deterministic Phase V-A candidates and Phase V-B card generation for allowlisted beta testers. AI card copy stays disabled unless the full rewrite runtime is enabled.</p>
         </div>
         <Button disabled={generate.isPending} onClick={() => generate.mutate()}>
           {generate.isPending ? 'Generating…' : 'Generate candidates'}
@@ -81,7 +81,7 @@ export function ProactiveIntelligenceDevPage() {
             <span className="grid size-11 place-items-center rounded-2xl bg-sage text-nuraa"><Activity size={20} /></span>
             <div>
               <p className="font-bold text-forest">Candidate review</p>
-              <p className="text-sm text-ink/58">Safe deterministic outputs only.</p>
+              <p className="text-sm text-ink/58">Safe deterministic outputs only; no raw prompts or provider output.</p>
             </div>
           </div>
 
@@ -97,7 +97,7 @@ export function ProactiveIntelligenceDevPage() {
         <div className="space-y-5">
           <Card className="p-5">
             <p className="font-bold text-forest">Would approve preview</p>
-            <p className="mt-1 text-sm text-ink/58">Top candidates after ranking and fatigue policy. These are not dashboard cards.</p>
+            <p className="mt-1 text-sm text-ink/58">Top candidates after ranking and fatigue policy before card generation.</p>
             <div className="mt-4 space-y-3">
               {approved.slice(0, 3).map((candidate) => (
                 <div key={candidate.id ?? candidate.theme_key} className="rounded-2xl border border-forest/10 bg-canvas p-3">
@@ -126,8 +126,8 @@ export function ProactiveIntelligenceDevPage() {
           </Card>
 
           <Card className="p-5">
-            <p className="font-bold text-forest">Phase V-C unavailable</p>
-            <p className="mt-2 text-sm leading-6 text-ink/60">Weekly reflections and notification delivery remain intentionally deferred.</p>
+            <p className="font-bold text-forest">Weekly reflection lives separately</p>
+            <p className="mt-2 text-sm leading-6 text-ink/60">Phase V-C weekly reflection is tested from /app/weekly-reflection. Notifications remain intentionally deferred.</p>
           </Card>
         </div>
       </div>
