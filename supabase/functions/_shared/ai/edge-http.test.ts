@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { handleAIGatewayHttpRequest } from './edge-http.ts'
+import { createServiceClientOptions, handleAIGatewayHttpRequest, resolveSupabaseKeys } from './edge-http.ts'
 import type { AIGatewayResponse, RuntimeSupabaseClient } from './types.ts'
 
 const env = {
@@ -61,6 +61,47 @@ describe('ai-gateway HTTP auth boundary', () => {
     expect(response.status).toBe(200)
     expect(runtimeHandler).toHaveBeenCalledWith(expect.objectContaining({ userId: 'verified-user' }))
     expect(runtimeHandler.mock.calls[0][0].body).toEqual({ taskType: 'ask_about_today', entryPoint: 'internal_dev', userId: 'attacker-id' })
+  })
+
+  it('resolves current Supabase publishable and secret key dictionaries', () => {
+    const keys = resolveSupabaseKeys({
+      SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({ current: 'sb_publishable_current', previous: ['sb_publishable_old'] }),
+      SUPABASE_SECRET_KEYS: JSON.stringify({ current: 'sb_secret_current', previous: ['sb_secret_old'] }),
+    })
+
+    expect(keys).toEqual({ publishableKey: 'sb_publishable_current', serviceKey: 'sb_secret_current' })
+  })
+
+  it('keeps legacy Supabase keys as fallback for older deployments', () => {
+    const keys = resolveSupabaseKeys({
+      SUPABASE_ANON_KEY: 'legacy-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role',
+    })
+
+    expect(keys).toEqual({ publishableKey: 'legacy-anon', serviceKey: 'legacy-service-role' })
+  })
+
+  it('strips authorization for API-key-only Supabase secret keys', async () => {
+    const options = createServiceClientOptions('sb_secret_current') as {
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+      }
+    }
+    const originalFetch = globalThis.fetch
+    const fetchSpy = vi.fn().mockResolvedValue(new Response('{}'))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    try {
+      await options.global.fetch('https://project.supabase.co/rest/v1/profiles', {
+        headers: { Authorization: 'Bearer sb_secret_current', apikey: 'sb_secret_current' },
+      })
+    } finally {
+      vi.stubGlobal('fetch', originalFetch)
+    }
+
+    const headers = fetchSpy.mock.calls[0][1].headers as Headers
+    expect(headers.get('apikey')).toBe('sb_secret_current')
+    expect(headers.get('authorization')).toBeNull()
   })
 })
 

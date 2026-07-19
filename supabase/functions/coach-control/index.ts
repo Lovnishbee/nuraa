@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { z } from 'zod'
-import { corsHeaders, extractBearerToken } from '../_shared/ai/edge-http.ts'
+import { corsHeaders, createServiceClientOptions, extractBearerToken, resolveSupabaseKeys } from '../_shared/ai/edge-http.ts'
 
 type RuntimeEnv = Record<string, string | undefined>
 
@@ -26,14 +26,13 @@ Deno.serve(async (request: Request) => {
 
   const env = Deno.env.toObject() as RuntimeEnv
   const supabaseUrl = env.SUPABASE_URL
-  const anonKey = env.SUPABASE_ANON_KEY
-  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ error: { code: 'SERVER_CONFIG_MISSING', message: 'Coach control is not configured.' } }, 500)
+  const keys = resolveSupabaseKeys(env)
+  if (!supabaseUrl || !keys.publishableKey || !keys.serviceKey) return json({ error: { code: 'SERVER_CONFIG_MISSING', message: 'Coach control is not configured.' } }, 500)
 
   const jwt = extractBearerToken(request.headers.get('Authorization'))
   if (!jwt) return json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required.' } }, 401)
 
-  const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${jwt}` } } })
+  const authClient = createClient(supabaseUrl, keys.publishableKey, { global: { headers: { Authorization: `Bearer ${jwt}` } } })
   const userResult = await authClient.auth.getUser(jwt)
   const userId = userResult.data.user?.id
   if (userResult.error || !userId) return json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required.' } }, 401)
@@ -47,10 +46,7 @@ Deno.serve(async (request: Request) => {
   const parsed = ControlInputSchema.safeParse(body)
   if (!parsed.success) return json({ error: { code: 'INVALID_REQUEST', message: 'Coach control request is invalid.' } }, 400)
 
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-    global: { headers: { Authorization: `Bearer ${serviceRoleKey}` } },
-  })
+  const serviceClient = createClient(supabaseUrl, keys.serviceKey, createServiceClientOptions(keys.serviceKey))
 
   try {
     const result = await handleControlAction(serviceClient, userId, parsed.data)

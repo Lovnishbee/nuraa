@@ -1,4 +1,4 @@
-import { corsHeaders, extractBearerToken } from '../ai/edge-http.ts'
+import { corsHeaders, createServiceClientOptions, extractBearerToken, resolveSupabaseKeys } from '../ai/edge-http.ts'
 import type { ProactiveRuntimeResult } from './runtime.ts'
 import type { ProactiveRuntimeEnv, ProactiveSupabaseClient } from './types.ts'
 
@@ -14,16 +14,15 @@ export async function handleProactiveEngineHttpRequest(options: {
   if (options.request.method !== 'POST') return json({ error: { code: 'METHOD_NOT_ALLOWED', message: 'Use POST.' } }, 405)
 
   const supabaseUrl = options.env.SUPABASE_URL
-  const anonKey = options.env.SUPABASE_ANON_KEY
-  const serviceRoleKey = options.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+  const keys = resolveSupabaseKeys(options.env)
+  if (!supabaseUrl || !keys.publishableKey || !keys.serviceKey) {
     return json({ error: { code: 'SERVER_CONFIG_MISSING', message: 'Proactive runtime is not configured.' } }, 500)
   }
 
   const jwt = extractBearerToken(options.request.headers.get('Authorization'))
   if (!jwt) return json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required.' } }, 401)
 
-  const authClient = options.createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${jwt}` } } })
+  const authClient = options.createClient(supabaseUrl, keys.publishableKey, { global: { headers: { Authorization: `Bearer ${jwt}` } } })
   const userResult = await authClient.auth?.getUser(jwt)
   const userId = userResult?.data?.user?.id
   if (userResult?.error || !userId) return json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required.' } }, 401)
@@ -35,10 +34,7 @@ export async function handleProactiveEngineHttpRequest(options: {
     return json({ error: { code: 'INVALID_JSON', message: 'Request body must be valid JSON.' } }, 400)
   }
 
-  const serviceClient = options.createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-    global: { headers: { Authorization: `Bearer ${serviceRoleKey}` } },
-  })
+  const serviceClient = options.createClient(supabaseUrl, keys.serviceKey, createServiceClientOptions(keys.serviceKey))
   const result = await options.runtimeHandler({ client: serviceClient, env: options.env, userId, body })
   return json(result.response, result.httpStatus)
 }
