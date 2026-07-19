@@ -347,6 +347,48 @@ describe('AI gateway runtime hardening', () => {
     expect(data.coach_messages.at(-1)?.task_type).toBe('coach_follow_up')
   })
 
+  it('keeps follow-up responses available when Coach message append fails', async () => {
+    const data = baseEnabledData()
+    data.coach_conversations.push({
+      id: '00000000-0000-4000-8000-000000000902',
+      user_id: userId,
+      entry_point: 'coach_home',
+      initial_task_type: 'ask_about_today',
+      status: 'active',
+      deterministic_title: 'Today’s guidance',
+      latest_context_envelope_id: null,
+      last_context_at: null,
+      last_active_at: '2026-06-29T13:55:00.000Z',
+      archived_at: null,
+      deleted_at: null,
+    })
+    const provider = providerWithPayload(payloadForTask('coach_follow_up'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClientWithRpcError(data, 'CONVERSATION_NOT_ACTIVE'),
+      env: envForTask('coach_follow_up'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: {
+        taskType: 'coach_follow_up',
+        entryPoint: 'coach_follow_up',
+        conversationId: '00000000-0000-4000-8000-000000000902',
+        userInput: { question: 'What should I prioritise today?' },
+        idempotencyKey: 'follow-up-rpc-failure-test',
+      },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(200)
+    expect(result.response.status).toBe('completed')
+    expect(result.response.fallbackUsed).toBe(false)
+    expect(result.response.conversationId).toBe('00000000-0000-4000-8000-000000000902')
+    expect(result.response.safeMeta.schemaValidationPassed).toBe(true)
+    expect(provider.generateStructured).toHaveBeenCalledTimes(1)
+    expect(data.ai_executions.at(-1)?.status).toBe('completed')
+    expect(data.coach_messages).toHaveLength(0)
+  })
+
   it('blocks card-to-Coach before context creation when the handoff flag is disabled', async () => {
     const data = baseEnabledData()
     const flag = data.ai_feature_flags.find((row) => row.feature_name === 'ENABLE_CARD_TO_COACH')
@@ -591,6 +633,13 @@ function fakeClient(data: Record<string, Array<Record<string, unknown>>>): Runti
       }
       return builder
     },
+  } as unknown as RuntimeSupabaseClient
+}
+
+function fakeClientWithRpcError(data: Record<string, Array<Record<string, unknown>>>, message: string): RuntimeSupabaseClient {
+  return {
+    ...fakeClient(data),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: { message } }),
   } as unknown as RuntimeSupabaseClient
 }
 

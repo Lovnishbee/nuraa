@@ -22,6 +22,7 @@ export type CoachMessageView = {
 }
 
 type CoachControlResponse<T = unknown> = { ok: true } & T
+const COACH_FOLLOW_UP_TIMEOUT_MS = 25_000
 
 export async function getCoachEligibility(): Promise<CoachEligibility> {
   const supabase = getSupabaseClient()
@@ -123,14 +124,18 @@ export async function startCoachFromCard(cardId: string, detailLevel: AIDetailLe
 }
 
 export async function sendCoachFollowUp(conversationId: string, question: string, detailLevel: AIDetailLevel, idempotencyKey = `follow_${crypto.randomUUID()}`): Promise<AIGatewayResponse> {
-  return invokeAIGateway({
-    taskType: 'coach_follow_up',
-    entryPoint: 'coach_follow_up',
-    conversationId,
-    detailLevel,
-    userInput: { question },
-    idempotencyKey,
-  })
+  try {
+    return await withTimeout(invokeAIGateway({
+      taskType: 'coach_follow_up',
+      entryPoint: 'coach_follow_up',
+      conversationId,
+      detailLevel,
+      userInput: { question },
+      idempotencyKey,
+    }), COACH_FOLLOW_UP_TIMEOUT_MS)
+  } catch {
+    return buildFollowUpFallback(conversationId)
+  }
 }
 
 export async function archiveCoachConversation(conversationId: string) {
@@ -186,4 +191,46 @@ function toCoachMessageView(message: CoachMessage): CoachMessageView {
     payload,
     createdAt: message.created_at,
   }
+}
+
+function buildFollowUpFallback(conversationId: string): AIGatewayResponse {
+  return {
+    requestId: crypto.randomUUID(),
+    taskType: 'coach_follow_up',
+    status: 'fallback',
+    fallbackUsed: true,
+    conversationId,
+    payload: {
+      headline: 'Keep the next step simple.',
+      summary: 'Nuraa could not complete the live Coach response, but your deterministic dashboard insights remain available.',
+      factualBasis: [{ label: 'Deterministic Nuraa context', sourceReference: 'deterministic:nuraa' }],
+      interpretations: [{ statement: 'A small steady action is the safest useful next step.', confidence: 'low' }],
+      primaryAction: { title: 'Use today’s visible focus', detail: 'Complete one small action from your dashboard before adding more.' },
+      clarificationQuestion: null,
+      suggestedPrompts: ['What should I prioritise today?'],
+      confidenceNote: 'Live AI was unavailable; deterministic Nuraa context is still active.',
+      sourceReferences: ['deterministic:nuraa'],
+    },
+    safeMeta: {
+      responseSchemaVersion: 'phase4b.v1',
+      promptContractVersion: 'client-follow-up-fallback',
+      schemaValidationPassed: true,
+    },
+  }
+}
+
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error('COACH_FOLLOW_UP_TIMEOUT')), timeoutMs)
+    operation.then(
+      (value) => {
+        window.clearTimeout(timeout)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
 }

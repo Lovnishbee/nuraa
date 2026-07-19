@@ -12,6 +12,7 @@ import {
   getCoachEligibility,
   getCoachMessages,
   listCoachConversations,
+  payloadToCoachMessage,
   reopenCoachConversation,
   sendCoachFollowUp,
   setCoachConsent,
@@ -52,7 +53,14 @@ export function CoachPage() {
   const detailLevel = eligibility.data?.responseDetail ?? 'balanced'
   const activeConversation = conversations.data?.find((conversation) => conversation.id === conversationId)
   const conversationCanReceiveFollowUp = !activeConversation || activeConversation.status === 'active'
-  const visibleMessages = useMemo(() => [...(messages.data ?? []), ...optimisticMessages], [messages.data, optimisticMessages])
+  const visibleMessages = useMemo(() => {
+    const byId = new Map<string, CoachMessageView>()
+    for (const message of [...(messages.data ?? []), ...optimisticMessages]) {
+      const key = message.localRequestKey ?? `${message.role}:${message.messageType}:${message.content}`
+      if (!byId.has(key)) byId.set(key, message)
+    }
+    return Array.from(byId.values())
+  }, [messages.data, optimisticMessages])
 
   const startMutation = useMutation({
     mutationFn: async (action: string | null) => {
@@ -63,7 +71,7 @@ export function CoachPage() {
     },
     onSuccess: async (response) => {
       if (response.conversationId) setConversationId(response.conversationId)
-      setOptimisticMessages([])
+      setOptimisticMessages([payloadToCoachMessage(response)])
       await queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
       if (response.conversationId) await queryClient.invalidateQueries({ queryKey: ['coach-messages', response.conversationId] })
     },
@@ -86,8 +94,11 @@ export function CoachPage() {
       }
       setOptimisticMessages((current) => [...current, optimistic])
     },
-    onSuccess: async (_response, variables) => {
-      setOptimisticMessages((current) => current.filter((message) => message.localRequestKey !== variables.requestKey))
+    onSuccess: async (response, variables) => {
+      setOptimisticMessages((current) => {
+        const withoutSubmittedMessage = current.filter((message) => message.localRequestKey !== variables.requestKey)
+        return [...withoutSubmittedMessage, payloadToCoachMessage(response)]
+      })
       await queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
       await queryClient.invalidateQueries({ queryKey: ['coach-messages', conversationId] })
     },
