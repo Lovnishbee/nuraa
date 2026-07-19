@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Battery, HeartPulse, LineChart, Moon, ShieldCheck, Waves } from 'lucide-react'
+import { Apple, Battery, Dumbbell, Flame, HeartPulse, LineChart, Moon, ShieldCheck, Utensils, Waves } from 'lucide-react'
 import { useState } from 'react'
 import { DesktopHeader } from '@/components/app/DesktopHeader'
 import { MobileHeader } from '@/components/app/MobileHeader'
@@ -8,14 +8,17 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { getProfileBundle } from '@/services/profile'
 import { getProgressSummary, type ProgressRange } from '@/services/intelligence'
+import { getMealLogs } from '@/services/mealService'
+import { getWorkoutLogs } from '@/services/workoutService'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
-import { getCurrentDate } from '@/lib/date'
+import { getCurrentDate, getLocalISODateWithOffset, getTodayInTimezone } from '@/lib/date'
 import { DashboardCard } from '../dashboard/components/DashboardCard'
 import { DashboardLayout } from '../dashboard/components/DashboardLayout'
 import { MetricTile } from '../dashboard/components/MetricTile'
 import { SectionHeader } from '../dashboard/components/SectionHeader'
 import type { WidgetStatus } from '../dashboard/components/types'
+import { summarizeMealsForRange, summarizeWorkoutsForRange } from '../dashboard/log-summary'
 
 type SeriesPoint = { date: string; value: number }
 
@@ -62,28 +65,35 @@ export function ProgressPage() {
   const [range, setRange] = useState<ProgressRange>('7d')
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
   const progress = useQuery({ queryKey: ['progress-summary', user.id, range], queryFn: () => getProgressSummary(user.id, range) })
+  const meals = useQuery({ queryKey: ['meal-logs', user.id, 'progress'], queryFn: () => getMealLogs(user.id, 100) })
+  const workouts = useQuery({ queryKey: ['workout-logs', user.id, 'progress'], queryFn: () => getWorkoutLogs(user.id, 100) })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const greeting = getTimeOfDayGreeting(getCurrentDate(), profile.data?.profile.timezone)
+  const rangeDays = range === '7d' ? 7 : 30
+  const rangeEnd = getTodayInTimezone(profile.data?.profile.timezone)
+  const rangeStart = getLocalISODateWithOffset(-(rangeDays - 1), profile.data?.profile.timezone)
   const scorePoints = progress.data?.scores.map((score) => ({ date: score.score_date, value: score.total_score ?? 70 })) ?? []
   const sleepPoints = progress.data?.signals.map((signal) => ({ date: signal.signal_date, value: signal.sleep_score ?? 70 })) ?? []
   const stressPoints = progress.data?.signals.map((signal) => ({ date: signal.signal_date, value: signal.stress_score ?? 70 })) ?? []
   const energyPoints = progress.data?.signals.map((signal) => ({ date: signal.signal_date, value: signal.energy_level ? signal.energy_level * 20 : 70 })) ?? []
   const recoveryPoints = progress.data?.signals.map((signal) => ({ date: signal.signal_date, value: signal.recovery_score ?? 70 })) ?? []
   const status = statusFromQuery(progress.isLoading, progress.isError, scorePoints.length > 0)
+  const mealSummary = summarizeMealsForRange(meals.data ?? [], rangeStart, rangeEnd)
+  const workoutSummary = summarizeWorkoutsForRange(workouts.data ?? [], rangeStart, rangeEnd)
 
   return (
     <DashboardLayout>
       <MobileHeader userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
-      <DesktopHeader title={`Progress, ${name}.`} subtitle={`${greeting}. Your trends are built from saved check-ins and deterministic signals.`} userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
+      <DesktopHeader title={`Progress, ${name}.`} subtitle={`${greeting}. Your trends are built from saved daily check-ins.`} userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
 
       <div className="md:hidden">
         <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Progress</p>
         <h1 className="display mt-2 text-4xl leading-none text-forest">Your signal trends.</h1>
-        <p className="mt-2 text-sm text-ink/60">Built from check-ins. No AI calls, uploads, or wearable data.</p>
+        <p className="mt-2 text-sm text-ink/60">Built from your saved check-ins.</p>
       </div>
 
       <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
-        <SectionHeader title="Readiness trend" eyebrow="Deterministic progress" />
+        <SectionHeader title="Readiness trend" eyebrow="Check-in based progress" />
         <div className="rounded-2xl border border-forest/10 bg-white p-1 shadow-sm">
           {(['7d', '30d'] as const).map((option) => (
             <Button key={option} variant="ghost" size="sm" onClick={() => setRange(option)} className={cn(range === option && 'bg-sage text-forest')}>
@@ -108,8 +118,8 @@ export function ProgressPage() {
           <h2 className="display mt-3 text-4xl leading-none text-forest">{scorePoints.length}/{range === '7d' ? 7 : 30}</h2>
           <p className="mt-3 text-sm leading-6 text-ink/62">Check-ins recorded in this range. More check-ins make patterns easier to interpret.</p>
           <div className="mt-5 rounded-[24px] bg-sage p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold text-forest"><ShieldCheck size={17} className="text-nuraa" /> Private deterministic signals</p>
-            <p className="mt-1 text-xs leading-5 text-ink/58">Progress uses your own saved Nuraa rows under RLS.</p>
+            <p className="flex items-center gap-2 text-sm font-semibold text-forest"><ShieldCheck size={17} className="text-nuraa" /> Private signals</p>
+            <p className="mt-1 text-xs leading-5 text-ink/58">Progress uses your own saved Nuraa check-ins.</p>
           </div>
         </Card>
       </div>
@@ -120,6 +130,16 @@ export function ProgressPage() {
         <MetricTile icon={Waves} label="Stress average" value={`${average(stressPoints.map((point) => point.value)) || '—'}`} detail="Higher is calmer" tone="amber" />
         <MetricTile icon={Battery} label="Energy average" value={`${average(energyPoints.map((point) => point.value)) || '—'}`} detail="Scaled from 1–5" tone="blue" />
         <MetricTile icon={HeartPulse} label="Recovery average" value={`${average(recoveryPoints.map((point) => point.value)) || '—'}`} detail="Energy, soreness, motivation" />
+      </section>
+
+      <section className="mt-6">
+        <SectionHeader title="Nutrition and movement logs" eyebrow={`${rangeDays}-day manual baseline`} />
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricTile icon={Utensils} label="Meals logged" value={`${mealSummary.mealsLogged || '—'}`} detail={`${mealSummary.daysWithMeals}/${rangeDays} days with meals`} />
+          <MetricTile icon={Apple} label="Protein logged" value={mealSummary.proteinG ? `${mealSummary.proteinG}g` : '—'} detail="From manual meal logs" />
+          <MetricTile icon={Dumbbell} label="Workout sessions" value={`${workoutSummary.sessions || '—'}`} detail={`${workoutSummary.daysWithWorkouts}/${rangeDays} days with activity`} />
+          <MetricTile icon={Flame} label="Workout minutes" value={workoutSummary.minutes ? `${workoutSummary.minutes}` : '—'} detail={workoutSummary.caloriesBurned ? `${workoutSummary.caloriesBurned} kcal logged` : 'Manual activity logs'} tone="amber" />
+        </div>
       </section>
 
       <section className="mt-6 grid gap-5 lg:grid-cols-2">

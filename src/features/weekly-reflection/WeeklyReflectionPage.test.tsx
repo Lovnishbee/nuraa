@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent } from '@testing-library/react'
+import { cleanup, fireEvent } from '@testing-library/react'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -41,12 +41,13 @@ function renderPage() {
 }
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
   useAuthStore.setState({ user: null, ready: false })
 })
 
 describe('WeeklyReflectionPage', () => {
-  it('redirects authenticated non-testers to dashboard', async () => {
+  it('redirects authenticated users who have not enabled Coach to dashboard', async () => {
     vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: false, internalConsentGranted: false, coachEnabled: false, responseDetail: 'balanced' })
     vi.mocked(getProfileBundle).mockResolvedValue({ profile: { full_name: 'Lovnish Bhatia', avatar_url: null } } as never)
 
@@ -55,7 +56,7 @@ describe('WeeklyReflectionPage', () => {
     expect(await screen.findByText('Dashboard redirected')).toBeInTheDocument()
   })
 
-  it('renders a current weekly reflection for eligible beta users', async () => {
+  it('renders a current weekly reflection for users with Coach enabled', async () => {
     vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
     vi.mocked(getProfileBundle).mockResolvedValue({ profile: { full_name: 'Lovnish Bhatia', avatar_url: null } } as never)
     vi.mocked(getCurrentWeeklyReflection).mockResolvedValue({

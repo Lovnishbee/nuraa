@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthPage } from './AuthPage'
 import { loginWithEmail } from '@/services/auth'
-import { getProfileBundle, type ProfileBundle } from '@/services/profile'
+import { getOrCreateProfileBundle, type ProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 
 vi.mock('@/lib/supabase', () => ({
@@ -18,7 +18,7 @@ vi.mock('@/services/auth', () => ({
 }))
 
 vi.mock('@/services/profile', () => ({
-  getProfileBundle: vi.fn(),
+  getOrCreateProfileBundle: vi.fn(),
 }))
 
 const testUser = {
@@ -104,7 +104,7 @@ describe('AuthPage login', () => {
   it('sets the authenticated user and routes completed users to the dashboard', async () => {
     const bundle = makeProfileBundle(true)
     vi.mocked(loginWithEmail).mockResolvedValue({ data: { session: { user: testUser }, user: testUser }, error: null } as Awaited<ReturnType<typeof loginWithEmail>>)
-    vi.mocked(getProfileBundle).mockResolvedValue(bundle)
+    vi.mocked(getOrCreateProfileBundle).mockResolvedValue(bundle)
     const queryClient = renderLogin()
 
     await submitLogin()
@@ -117,7 +117,7 @@ describe('AuthPage login', () => {
   it('routes incomplete users to the stored drop-off step when it is ahead of inferred progress', async () => {
     window.localStorage.setItem(`nuraa:onboarding:resume:${testUser.id}`, '/onboarding/nutrition')
     vi.mocked(loginWithEmail).mockResolvedValue({ data: { session: { user: testUser }, user: testUser }, error: null } as Awaited<ReturnType<typeof loginWithEmail>>)
-    vi.mocked(getProfileBundle).mockResolvedValue(makeProfileBundle(false))
+    vi.mocked(getOrCreateProfileBundle).mockResolvedValue(makeProfileBundle(false))
     renderLogin()
 
     await submitLogin()

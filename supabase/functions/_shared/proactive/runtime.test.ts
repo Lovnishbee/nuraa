@@ -103,6 +103,21 @@ describe('Phase V-A proactive runtime', () => {
     expect(data.proactive_card_events.some((event) => event.event_type === 'created')).toBe(true)
   })
 
+  it('generates proactive cards for consented users without internal tester access', async () => {
+    const data = baseData({ tester: { user_id: userId, enabled: false, consent_granted: false } })
+
+    const result = await handleProactiveEngineRequest({
+      client: fakeClient(data),
+      env: {},
+      userId,
+      body: { action: 'generate_cards' },
+      now,
+    })
+
+    expect(result.response).toMatchObject({ status: 'completed' })
+    expect(data.proactive_cards.length).toBeGreaterThan(0)
+  })
+
   it('fails card actions closed before persistence when card flags are disabled', async () => {
     const data = baseData({ cardFlagsEnabled: false })
     const result = await handleProactiveEngineRequest({
@@ -172,6 +187,24 @@ describe('Phase V-A proactive runtime', () => {
     expect(handoff.response).toMatchObject({ status: 'completed' })
     expect(data.proactive_cards[0].status).toBe('snoozed')
     expect(data.proactive_card_events.map((event) => event.event_type)).toEqual(expect.arrayContaining(['shown', 'snoozed', 'coach_handoff_started']))
+  })
+
+  it('does not block Coach handoff when telemetry event writes fail', async () => {
+    const data = baseData()
+    const setupClient = fakeClient(data)
+    await handleProactiveEngineRequest({ client: setupClient, env: {}, userId, body: { action: 'generate_cards' }, now })
+    const cardId = String(data.proactive_cards[0].id)
+
+    const result = await handleProactiveEngineRequest({
+      client: fakeClient(data, { failEventWrites: true }),
+      env: {},
+      userId,
+      body: { action: 'start_coach_handoff', cardId },
+      now,
+    })
+
+    expect(result.response).toMatchObject({ status: 'completed' })
+    expect((result.response as { card?: { id?: string } }).card?.id).toBe(cardId)
   })
 
   it('rejects cross-user card action attempts without writing events', async () => {
@@ -247,7 +280,7 @@ function baseData(options: {
   }
 }
 
-function fakeClient(data: Record<string, Array<Record<string, unknown>>>): ProactiveSupabaseClient {
+function fakeClient(data: Record<string, Array<Record<string, unknown>>>, options: { failEventWrites?: boolean } = {}): ProactiveSupabaseClient {
   return {
     from(table: string) {
       let rows = [...(data[table] ?? [])]
@@ -256,6 +289,7 @@ function fakeClient(data: Record<string, Array<Record<string, unknown>>>): Proac
       const builder = {
         select: () => builder,
         insert: (values: unknown) => {
+          if (options.failEventWrites && table === 'proactive_card_events') throw new Error('CARD_EVENT_FAILED')
           selectedInsertRows = insertRows(data, table, values)
           rows = selectedInsertRows
           return builder

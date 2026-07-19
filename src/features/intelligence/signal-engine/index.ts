@@ -12,15 +12,16 @@ type SignalInput = {
 }
 
 function parseCheckinNotes(notes: string | null) {
-  if (!notes) return { soreness: null, motivation: null }
+  if (!notes) return { soreness: null, motivation: null, hydrationLitres: null }
   try {
-    const parsed = JSON.parse(notes) as { body_soreness?: number; motivation_level?: number }
+    const parsed = JSON.parse(notes) as { body_soreness?: number; motivation_level?: number; hydration_litres?: number }
     return {
       soreness: parsed.body_soreness ?? null,
       motivation: parsed.motivation_level ?? null,
+      hydrationLitres: parsed.hydration_litres ?? null,
     }
   } catch {
-    return { soreness: null, motivation: null }
+    return { soreness: null, motivation: null, hydrationLitres: null }
   }
 }
 
@@ -30,6 +31,15 @@ function sleepHoursScore(hours: number | null) {
   if (hours >= 7) return 90
   if (hours >= 6) return 74
   if (hours >= 5) return 52
+  return 34
+}
+
+function hydrationLitresScore(litres: number | null) {
+  if (litres === null) return null
+  if (litres >= 2.5) return 95
+  if (litres >= 2) return 85
+  if (litres >= 1.5) return 70
+  if (litres >= 1) return 52
   return 34
 }
 
@@ -51,7 +61,7 @@ export function buildHealthSignal({ profile, healthProfile, goals, preferences, 
   const recoveryScore = recoveryScores.length ? round(average(recoveryScores)) : 70
   const activityScore = healthProfile?.activity_level ? 74 : 70
   const nutritionScore = preferences?.diet_preference ? 74 : 70
-  const hydrationScore = 70
+  const hydrationScore = hydrationLitresScore(parsedNotes.hydrationLitres) ?? 70
 
   return {
     userId: profile.id,
@@ -86,9 +96,9 @@ export function buildHealthSignal({ profile, healthProfile, goals, preferences, 
       confidence: preferences?.diet_preference ? 35 : 18,
     },
     hydration: {
-      litres: null,
+      litres: parsedNotes.hydrationLitres,
       score: hydrationScore,
-      confidence: 18,
+      confidence: parsedNotes.hydrationLitres === null ? 18 : 90,
     },
     context: {
       mood: checkin?.mood ?? null,

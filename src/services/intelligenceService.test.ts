@@ -28,7 +28,7 @@ const checkin: DailyCheckin = {
   stress_level: 2,
   sleep_quality: 5,
   sleep_hours: 7.5,
-  notes: JSON.stringify({ body_soreness: 2, motivation_level: 4 }),
+  notes: JSON.stringify({ body_soreness: 2, motivation_level: 4, hydration_litres: 2.4 }),
   created_at: '2026-06-27T00:00:00.000Z',
 }
 
@@ -37,6 +37,8 @@ describe('buildIntelligenceFromBundle', () => {
     const result = buildIntelligenceFromBundle({ profile, healthProfile: null, goals: [], preferences: null, permissions: null }, checkin)
 
     expect(result.signal.userId).toBe('user-1')
+    expect(result.signal.hydration.litres).toBe(2.4)
+    expect(result.score.factors.hydration).toBe(85)
     expect(result.score.totalScore).toBeGreaterThan(0)
     expect(result.brief.headline).toBeTruthy()
     expect(result.insights.length).toBeGreaterThan(0)

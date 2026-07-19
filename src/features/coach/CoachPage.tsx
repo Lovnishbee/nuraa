@@ -45,7 +45,7 @@ export function CoachPage() {
   const startedActionRef = useRef<string | null>(null)
 
   const eligibility = useQuery({ queryKey: ['coach-eligibility', userId], queryFn: getCoachEligibility, enabled: Boolean(userId) })
-  const dashboard = useQuery({ queryKey: ['dashboard-intelligence', userId], queryFn: () => getDashboardSummary(userId!), enabled: Boolean(userId && eligibility.data?.internalEnabled) })
+  const dashboard = useQuery({ queryKey: ['dashboard-intelligence', userId], queryFn: () => getDashboardSummary(userId!), enabled: Boolean(userId) })
   const conversations = useQuery({ queryKey: ['coach-conversations', userId], queryFn: () => listCoachConversations(userId!), enabled: Boolean(userId && eligibility.data?.coachEnabled) })
   const messages = useQuery({ queryKey: ['coach-messages', conversationId], queryFn: () => getCoachMessages(conversationId!), enabled: Boolean(conversationId) })
 
@@ -96,16 +96,21 @@ export function CoachPage() {
   useEffect(() => {
     if (!eligibility.data?.coachEnabled) return
     if (conversationId || startMutation.isPending) return
+    if (!requestedAction && !requestedCardId && conversations.isLoading) return
+    const latestActiveConversation = conversations.data?.find((conversation) => conversation.status === 'active')
+    if (!requestedAction && !requestedCardId && latestActiveConversation) {
+      setConversationId(latestActiveConversation.id)
+      return
+    }
     const actionKey = `${requestedAction || 'coach_home'}:${requestedCardId ?? ''}`
     if (startedActionRef.current === actionKey) return
     startedActionRef.current = actionKey
     startMutation.mutate(requestedAction)
-  }, [conversationId, eligibility.data?.coachEnabled, requestedAction, requestedCardId, startMutation])
+  }, [conversationId, conversations.data, conversations.isLoading, eligibility.data?.coachEnabled, requestedAction, requestedCardId, startMutation])
 
   if (!userId) return <Navigate to="/login" replace />
   if (eligibility.isLoading) return <div className="p-6 sm:p-10"><LoadingSkeleton className="h-96" /></div>
-  if (!eligibility.data?.internalEnabled || !eligibility.data.internalConsentGranted) return <Navigate to="/app/dashboard" replace />
-  if (!eligibility.data.coachEnabled) return <CoachConsent userId={userId} detailLevel={detailLevel} />
+  if (!eligibility.data?.coachEnabled) return <CoachConsent userId={userId} detailLevel={detailLevel} />
 
   return (
     <div className="mx-auto grid max-w-[1320px] gap-5 p-4 pb-28 sm:p-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-8">

@@ -6,13 +6,11 @@ import type { WeeklyReflection, WeeklyReflectionMetrics, WeeklyReflectionPayload
 const accessFlags = ['ENABLE_WEEKLY_REFLECTION']
 
 export async function evaluateWeeklyReflectionAccess(client: WeeklyReflectionSupabaseClient, env: WeeklyReflectionRuntimeEnv, userId: string) {
-  const [tester, preferences, flags] = await Promise.all([
-    client.from('ai_internal_testers').select('enabled, consent_granted').eq('user_id', userId).maybeSingle<{ enabled: boolean; consent_granted: boolean }>(),
+  const [preferences, flags] = await Promise.all([
     client.from('user_ai_preferences').select('ai_coaching_enabled').eq('user_id', userId).maybeSingle<{ ai_coaching_enabled: boolean }>(),
     client.from('ai_feature_flags').select('feature_name, enabled').in('feature_name', accessFlags),
   ])
-  if (tester.error || preferences.error || flags.error) return { enabled: false, reason: 'access_lookup_failed' }
-  if (!tester.data?.enabled || !tester.data.consent_granted) return { enabled: false, reason: 'not_internal_tester' }
+  if (preferences.error || flags.error) return { enabled: false, reason: 'access_lookup_failed' }
   if (!preferences.data?.ai_coaching_enabled) return { enabled: false, reason: 'ai_coaching_consent_required' }
   if (!readBooleanEnv(env, 'ENABLE_WEEKLY_REFLECTION', false)) return { enabled: false, reason: 'weekly_reflection_env_disabled' }
   const flagRows = new Map(((flags.data ?? []) as Array<{ feature_name: string; enabled: boolean }>).map((row) => [row.feature_name, row.enabled]))
@@ -32,7 +30,7 @@ export async function buildWeeklyReflectionSnapshot(client: WeeklyReflectionSupa
   const [scores, scoreFactors, healthSignals, dailyBriefs, insightEvents, goals, cardFeedback, checkins] = await Promise.all([
     client.from('nuraa_scores').select('*').eq('user_id', userId).gte('score_date', previousWindowStart).lte('score_date', window.weekEndDate).order('score_date', { ascending: false }),
     client.from('score_factors').select('*').eq('user_id', userId).gte('score_date', previousWindowStart).lte('score_date', window.weekEndDate).order('score_date', { ascending: false }),
-    client.from('health_signals').select('id, user_id, signal_date, sleep_quality, stress_level, energy_level, soreness_level, motivation_level, overall_signal_confidence').eq('user_id', userId).gte('signal_date', previousWindowStart).lte('signal_date', window.weekEndDate).order('signal_date', { ascending: false }),
+    client.from('health_signals').select('*').eq('user_id', userId).gte('signal_date', previousWindowStart).lte('signal_date', window.weekEndDate).order('signal_date', { ascending: false }),
     client.from('daily_briefs').select('id, user_id, brief_date, headline, tone').eq('user_id', userId).gte('brief_date', previousWindowStart).lte('brief_date', window.weekEndDate).order('brief_date', { ascending: false }),
     client.from('insight_events').select('id, user_id, event_date, rule_id, title, description, category, severity, recommendation').eq('user_id', userId).gte('event_date', previousWindowStart).lte('event_date', window.weekEndDate).order('event_date', { ascending: false }),
     client.from('user_goals').select('id, user_id, goal_type, goal_label, priority, status').eq('user_id', userId).eq('status', 'active').order('priority', { ascending: true }).limit(3),
@@ -42,12 +40,9 @@ export async function buildWeeklyReflectionSnapshot(client: WeeklyReflectionSupa
 
   assertNoError(scores.error, 'WEEKLY_SCORES_READ_FAILED')
   assertNoError(scoreFactors.error, 'WEEKLY_SCORE_FACTORS_READ_FAILED')
-  assertNoError(healthSignals.error, 'WEEKLY_SIGNALS_READ_FAILED')
-  assertNoError(dailyBriefs.error, 'WEEKLY_BRIEFS_READ_FAILED')
-  assertNoError(insightEvents.error, 'WEEKLY_INSIGHTS_READ_FAILED')
-  assertNoError(goals.error, 'WEEKLY_GOALS_READ_FAILED')
-  assertNoError(cardFeedback.error, 'WEEKLY_CARD_FEEDBACK_READ_FAILED')
-  assertNoError(checkins.error, 'WEEKLY_CHECKINS_READ_FAILED')
+  // Weekly Reflection can still produce a safe limited-data summary when
+  // auxiliary context is temporarily unavailable. Scores/factors remain the
+  // deterministic source of truth; the rest only enriches the reflection.
 
   return {
     userId,
@@ -60,12 +55,12 @@ export async function buildWeeklyReflectionSnapshot(client: WeeklyReflectionSupa
     nowIso,
     scores: (scores.data ?? []) as Array<Record<string, unknown>>,
     scoreFactors: (scoreFactors.data ?? []) as Array<Record<string, unknown>>,
-    healthSignals: (healthSignals.data ?? []) as Array<Record<string, unknown>>,
-    dailyBriefs: (dailyBriefs.data ?? []) as Array<Record<string, unknown>>,
-    insightEvents: (insightEvents.data ?? []) as Array<Record<string, unknown>>,
-    goals: (goals.data ?? []) as Array<Record<string, unknown>>,
-    cardFeedback: (cardFeedback.data ?? []) as Array<Record<string, unknown>>,
-    checkins: (checkins.data ?? []) as Array<Record<string, unknown>>,
+    healthSignals: rowsOrEmpty(healthSignals) as Array<Record<string, unknown>>,
+    dailyBriefs: rowsOrEmpty(dailyBriefs) as Array<Record<string, unknown>>,
+    insightEvents: rowsOrEmpty(insightEvents) as Array<Record<string, unknown>>,
+    goals: rowsOrEmpty(goals) as Array<Record<string, unknown>>,
+    cardFeedback: rowsOrEmpty(cardFeedback) as Array<Record<string, unknown>>,
+    checkins: rowsOrEmpty(checkins) as Array<Record<string, unknown>>,
   }
 }
 
@@ -143,3 +138,7 @@ function assertNoError(error: unknown, code: string): asserts error is null {
   if (error) throw new Error(code)
 }
 
+function rowsOrEmpty(result: { data?: unknown[] | null; error?: unknown }) {
+  if (result.error || !Array.isArray(result.data)) return []
+  return result.data
+}

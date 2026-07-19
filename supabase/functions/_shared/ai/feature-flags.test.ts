@@ -39,20 +39,22 @@ describe('feature flag evaluation', () => {
     expect(result).toEqual({ enabled: false, reason: 'consent_missing' })
   })
 
-  it('requires internal tester access outside the dev entrypoint when the runtime is internal-only', async () => {
+  it('does not require internal tester access for product entrypoints', async () => {
     const result = await evaluateFeatureAccess({
       client: fakeClient({
         ai_feature_flags: [
           { feature_name: 'AI_ENABLED', enabled: true },
           { feature_name: 'ENABLE_AI_DAILY_BRIEF', enabled: true },
+          { feature_name: 'ENABLE_AI_COACH', enabled: true },
         ],
+        user_ai_preferences: [{ user_id: 'user-1', ai_coaching_enabled: true }],
       }),
-      env: { AI_ENABLED: 'true', ENABLE_AI_DAILY_BRIEF: 'true', AI_INTERNAL_ACCESS_REQUIRED: 'true' },
+      env: { AI_ENABLED: 'true', ENABLE_AI_DAILY_BRIEF: 'true', ENABLE_AI_COACH: 'true', AI_INTERNAL_ACCESS_REQUIRED: 'true' },
       userId: 'user-1',
       input: { taskType: 'rewrite_daily_brief', entryPoint: 'future_dashboard' },
     })
 
-    expect(result).toEqual({ enabled: false, reason: 'not_internal_tester' })
+    expect(result).toEqual({ enabled: true })
   })
 
   it('uses the task-specific feature flag for the requested task only', async () => {

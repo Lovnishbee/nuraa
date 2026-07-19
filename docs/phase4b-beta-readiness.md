@@ -1,6 +1,6 @@
 # Phase 4B Beta Readiness
 
-This checklist is for the tightly controlled Nuraa Coach private beta. Phase 4B remains allowlisted, consent-gated, disabled by default, and grounded in deterministic Nuraa intelligence.
+This checklist is for the Nuraa Coach beta runtime. Product Coach access is authenticated, consent-gated, feature-flagged, disabled by default, and grounded in deterministic Nuraa intelligence. Internal tester allowlisting is reserved for `/dev/*` tools.
 
 ## Preflight
 
@@ -17,23 +17,20 @@ This checklist is for the tightly controlled Nuraa Coach private beta. Phase 4B 
 
 ## Controlled beta setup
 
-1. Add one approved tester to `public.ai_internal_testers` with:
-   - `enabled = true`
-   - `consent_granted = true`
-2. Enable only the required server environment flags in staging:
+1. Enable only the required server environment flags in staging:
    - `AI_ENABLED=true`
-   - `AI_INTERNAL_ACCESS_REQUIRED=true`
    - `ENABLE_AI_COACH=true`
    - `ENABLE_AI_ASK_ABOUT_TODAY=true`
    - `ENABLE_AI_SCORE_EXPLANATION=true`
    - `ENABLE_AI_COACH_DASHBOARD_ENTRY=true` only if testing dashboard entry points
-3. Enable matching `public.ai_feature_flags` rows for those same flags.
-4. Enable the tester’s Coach consent through the app consent screen or controlled `coach-control` path.
-5. Confirm a non-tester cannot see Coach navigation or dashboard Coach actions.
+2. Enable matching `public.ai_feature_flags` rows for those same flags.
+3. Enable the signed-in user’s Coach consent through the app consent screen or controlled `coach-control` path.
+4. For `/dev/ai-runtime`, add the developer user to `public.ai_internal_testers` with `enabled = true` and `consent_granted = true`.
+5. Confirm users without Coach consent cannot run Coach requests.
 
 ## Functional smoke tests
 
-Use one allowlisted staging user with non-sensitive test data.
+Use an authenticated staging user with non-sensitive test data and Coach consent enabled.
 
 - Ask About Today from the dashboard creates a conversation and one persisted Nuraa message.
 - Explain My Score creates a score-focused conversation and one persisted Nuraa message.
@@ -72,7 +69,7 @@ Use one allowlisted staging user with non-sensitive test data.
 
 Run only after automated checks pass.
 
-1. Use one allowlisted staging user.
+1. Use one authenticated staging user with Coach consent enabled.
 2. Send one low-risk wellness prompt.
 3. Run one score explanation.
 4. Simulate provider timeout and confirm fallback.

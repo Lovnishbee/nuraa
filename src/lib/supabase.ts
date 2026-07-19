@@ -3,7 +3,23 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
-export const isSupabaseConfigured = Boolean(url && key)
+function isRealSupabaseUrl(value: string | undefined) {
+  if (!value || value === 'https://your-project.supabase.co') return false
+  try {
+    const parsed = new URL(value)
+    const isHostedSupabase = parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co')
+    const isLocalSupabase = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)
+    return isHostedSupabase || isLocalSupabase
+  } catch {
+    return false
+  }
+}
+
+function isRealPublishableKey(value: string | undefined) {
+  return Boolean(value && value !== 'your-publishable-key')
+}
+
+export const isSupabaseConfigured = isRealSupabaseUrl(url) && isRealPublishableKey(key)
 
 let client: SupabaseClient | undefined
 

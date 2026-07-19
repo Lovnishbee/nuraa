@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { getPostAuthDestination, getStoredOnboardingResumePath } from '@/features/onboarding/progress'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { loginWithEmail, registerWithEmail } from '@/services/auth'
-import { getProfileBundle } from '@/services/profile'
+import { getOrCreateProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 
 function createAuthSchema(isRegister: boolean) {
@@ -75,7 +75,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
 
     try {
-      const profileBundle = await getProfileBundle(user.id)
+      const profileBundle = await getOrCreateProfileBundle(user)
       queryClient.setQueryData(['profile', user.id], profileBundle)
       navigate(getPostAuthDestination(profileBundle, getStoredOnboardingResumePath(user.id)), { replace: true })
     } catch {

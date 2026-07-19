@@ -56,7 +56,7 @@ export function ProactiveIntelligenceDevPage() {
         <div>
           <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Internal dev</p>
           <h1 className="display mt-2 text-4xl leading-none text-forest">Proactive intelligence review.</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">Reviews deterministic Phase V-A candidates and Phase V-B card generation for allowlisted beta testers. AI card copy stays disabled unless the full rewrite runtime is enabled.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">Reviews deterministic Phase V-A candidates and Phase V-B card generation for internal testers. AI card copy stays disabled unless the full rewrite runtime is enabled.</p>
         </div>
         <Button disabled={generate.isPending} onClick={() => generate.mutate()}>
           {generate.isPending ? 'Generating…' : 'Generate candidates'}

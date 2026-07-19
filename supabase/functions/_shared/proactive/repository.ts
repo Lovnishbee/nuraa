@@ -8,14 +8,17 @@ const cardCoachFlags = [...cardFlags, 'ENABLE_CARD_TO_COACH']
 
 export async function evaluateProactiveAccess(client: ProactiveSupabaseClient, userId: string, surface: 'dev' | 'cards' | 'card_feedback' | 'card_coach' = 'dev') {
   const requiredFlags = getRequiredFlags(surface)
-  const [tester, preferences, flags] = await Promise.all([
-    client.from('ai_internal_testers').select('enabled, consent_granted').eq('user_id', userId).maybeSingle<{ enabled: boolean; consent_granted: boolean }>(),
+  const [preferences, flags] = await Promise.all([
     client.from('user_ai_preferences').select('ai_coaching_enabled').eq('user_id', userId).maybeSingle<{ ai_coaching_enabled: boolean }>(),
     client.from('ai_feature_flags').select('feature_name, enabled').in('feature_name', requiredFlags),
   ])
 
-  if (tester.error || preferences.error || flags.error) return { enabled: false, reason: 'access_lookup_failed' }
-  if (!tester.data?.enabled || !tester.data.consent_granted) return { enabled: false, reason: 'not_internal_tester' }
+  if (preferences.error || flags.error) return { enabled: false, reason: 'access_lookup_failed' }
+  if (surface === 'dev') {
+    const tester = await client.from('ai_internal_testers').select('enabled, consent_granted').eq('user_id', userId).maybeSingle<{ enabled: boolean; consent_granted: boolean }>()
+    if (tester.error) return { enabled: false, reason: 'access_lookup_failed' }
+    if (!tester.data?.enabled || !tester.data.consent_granted) return { enabled: false, reason: 'not_internal_tester' }
+  }
   if (!preferences.data?.ai_coaching_enabled) return { enabled: false, reason: 'ai_coaching_consent_required' }
   const rows = ((flags.data ?? []) as Array<{ feature_name: string; enabled: boolean }>)
   const enabledFlags = new Map(rows.map((row) => [row.feature_name, row.enabled]))
@@ -178,7 +181,7 @@ export async function persistProactiveCards(client: ProactiveSupabaseClient, car
     .select('*')
   assertNoError(result.error, 'CARD_UPSERT_FAILED')
   const rows = normalizeCards((result.data ?? []) as ProactiveCard[])
-  await Promise.all(rows.map((card) => writeCardEvent(client, card.user_id, card.id!, 'created', { candidateId: card.candidate_id })))
+  await Promise.all(rows.map((card) => tryWriteCardEvent(client, card.user_id, card.id!, 'created', { candidateId: card.candidate_id })))
   return rows
 }
 
@@ -226,7 +229,7 @@ export async function insertProactiveCardFeedback(client: ProactiveSupabaseClien
     .select('*')
     .single<ProactiveCardFeedback>()
   assertNoError(result.error, 'CARD_FEEDBACK_FAILED')
-  await writeCardEvent(client, values.userId, values.cardId, 'feedback_submitted', { feedbackType: values.feedbackType })
+  await tryWriteCardEvent(client, values.userId, values.cardId, 'feedback_submitted', { feedbackType: values.feedbackType })
   return { feedback: result.data, card }
 }
 
@@ -247,6 +250,17 @@ export async function writeCardEvent(client: ProactiveSupabaseClient, userId: st
     .from('proactive_card_events')
     .insert({ user_id: userId, card_id: cardId, event_type: eventType, event_payload: payload })
   assertNoError(result.error, 'CARD_EVENT_FAILED')
+}
+
+export async function tryWriteCardEvent(client: ProactiveSupabaseClient, userId: string, cardId: string, eventType: ProactiveCardEventType, payload: Record<string, unknown> = {}) {
+  try {
+    await writeCardEvent(client, userId, cardId, eventType, payload)
+    return true
+  } catch {
+    // Card events are telemetry. They must not block the user action when the
+    // card ownership check and primary mutation have already succeeded.
+    return false
+  }
 }
 
 function normalizeCards(cards: ProactiveCard[]) {

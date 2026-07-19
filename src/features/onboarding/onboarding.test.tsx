@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { User } from '@supabase/supabase-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -98,6 +98,7 @@ function renderOnboarding(path: string, bundle = makeProfileBundle()) {
 }
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
   window.localStorage.clear()
   useAuthStore.setState({ user: null, ready: false })

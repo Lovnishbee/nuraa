@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, CalendarDays, FileText, Lightbulb, ShieldCheck, Sparkles } from 'lucide-react'
+import { Apple, BarChart3, CalendarDays, Dumbbell, FileText, Flame, Lightbulb, ShieldCheck, Sparkles, Utensils } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DesktopHeader } from '@/components/app/DesktopHeader'
 import { MobileHeader } from '@/components/app/MobileHeader'
@@ -8,14 +8,17 @@ import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import reflectionIllustration from '@/assets/dashboard/reflection_illustration.png'
 import { getInsightsSummary } from '@/services/intelligence'
+import { getMealLogs } from '@/services/mealService'
 import { getProfileBundle } from '@/services/profile'
+import { getWorkoutLogs } from '@/services/workoutService'
 import { useAuthStore } from '@/stores/auth-store'
 import { getTimeOfDayGreeting } from '@/utils/greeting'
-import { getCurrentDate } from '@/lib/date'
+import { getCurrentDate, getLocalISODateWithOffset, getTodayInTimezone } from '@/lib/date'
 import { DashboardCard } from '../dashboard/components/DashboardCard'
 import { DashboardLayout } from '../dashboard/components/DashboardLayout'
 import { SectionHeader } from '../dashboard/components/SectionHeader'
 import type { WidgetStatus } from '../dashboard/components/types'
+import { summarizeMealsForRange, summarizeWorkoutsForRange } from '../dashboard/log-summary'
 
 type FocusItem = { title: string; description: string; category?: string }
 
@@ -40,8 +43,14 @@ export function ReportsPage() {
   const user = useAuthStore((state) => state.user)!
   const profile = useQuery({ queryKey: ['profile', user.id], queryFn: () => getProfileBundle(user.id) })
   const reports = useQuery({ queryKey: ['insights-summary', user.id], queryFn: () => getInsightsSummary(user.id) })
+  const meals = useQuery({ queryKey: ['meal-logs', user.id, 'reports'], queryFn: () => getMealLogs(user.id, 100) })
+  const workouts = useQuery({ queryKey: ['workout-logs', user.id, 'reports'], queryFn: () => getWorkoutLogs(user.id, 100) })
   const name = profile.data?.profile.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const greeting = getTimeOfDayGreeting(getCurrentDate(), profile.data?.profile.timezone)
+  const rangeEnd = getTodayInTimezone(profile.data?.profile.timezone)
+  const rangeStart = getLocalISODateWithOffset(-6, profile.data?.profile.timezone)
+  const mealSummary = summarizeMealsForRange(meals.data ?? [], rangeStart, rangeEnd)
+  const workoutSummary = summarizeWorkoutsForRange(workouts.data ?? [], rangeStart, rangeEnd)
   const brief = reports.data?.brief
   const score = reports.data?.score
   const insights = reports.data?.insights ?? []
@@ -65,22 +74,22 @@ export function ReportsPage() {
   return (
     <DashboardLayout>
       <MobileHeader userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
-      <DesktopHeader title={`Reports, ${name}.`} subtitle={`${greeting}. Deterministic insights from your Nuraa signals.`} userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
+      <DesktopHeader title={`Reports, ${name}.`} subtitle={`${greeting}. Insights from your recent Nuraa signals.`} userName={profile.data?.profile.full_name} avatarUrl={profile.data?.profile.avatar_url} />
 
       <div className="md:hidden">
         <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Reports</p>
         <h1 className="display mt-2 text-4xl leading-none text-forest">Insights hub.</h1>
-        <p className="mt-2 text-sm text-ink/60">Reports are generated from saved check-ins and rule-based signals.</p>
+        <p className="mt-2 text-sm text-ink/60">Reports are generated from saved check-ins.</p>
       </div>
 
       <section className="mt-7 grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
         <DashboardCard title="Weekly insight" status={status} onRetry={() => void reports.refetch()} className="bg-forest p-7 text-white" empty={{ title: 'Reports are still learning.', description: 'Complete a check-in to create your first deterministic insight.' }}>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.12em] text-white/70"><Sparkles size={16} /> Rule-based insight</div>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.12em] text-white/70"><Sparkles size={16} /> Weekly insight</div>
           <h2 className="display mt-4 text-[42px] leading-[1.02] sm:text-5xl">{brief?.headline ?? 'Your routine is taking shape.'}</h2>
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/82">{brief?.summary ?? 'Nuraa will summarise patterns as your saved check-ins grow.'}</p>
           <div className="mt-6 rounded-[24px] border border-white/15 bg-white/8 p-4">
             <p className="text-sm font-semibold text-white">{brief?.insight ?? 'Personalised reports unlock as Nuraa learns more about your routine.'}</p>
-            <p className="mt-1 text-sm leading-6 text-white/68">No uploads, OCR, report analysis, AI calls, or medical diagnosis are used in Phase 3.</p>
+            <p className="mt-1 text-sm leading-6 text-white/68">Generated from your saved check-ins. No diagnosis or prescriptions.</p>
           </div>
         </DashboardCard>
 
@@ -114,6 +123,16 @@ export function ReportsPage() {
         </div>
       </section>
 
+      <section className="mt-7">
+        <SectionHeader title="Meals and movement summary" eyebrow={`${rangeStart} — ${rangeEnd}`} />
+        <div className="mt-4 grid gap-4 md:grid-cols-4">
+          <ReportMetric icon={Utensils} label="Meals logged" value={`${mealSummary.mealsLogged || '—'}`} detail={`${mealSummary.daysWithMeals}/7 days with meal data`} />
+          <ReportMetric icon={Apple} label="Protein" value={mealSummary.proteinG ? `${mealSummary.proteinG}g` : '—'} detail="Manual meal logs" />
+          <ReportMetric icon={Dumbbell} label="Workouts" value={`${workoutSummary.sessions || '—'}`} detail={`${workoutSummary.minutes || 0} minutes logged`} />
+          <ReportMetric icon={Flame} label="Activity calories" value={workoutSummary.caloriesBurned ? `${workoutSummary.caloriesBurned}` : '—'} detail="Optional workout calories" />
+        </div>
+      </section>
+
       <section className="mt-7 grid gap-5 lg:grid-cols-[.9fr_1.1fr]">
         <Card className="p-6">
           <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[.12em] text-nuraa"><CalendarDays size={17} /> Patterns</p>
@@ -124,7 +143,7 @@ export function ReportsPage() {
                 <p className="mt-1 text-sm leading-6 text-ink/62">{insight.description}</p>
               </div>
             )) : (
-              <EmptyState title="No patterns yet" description="Check in for a few days so Nuraa can detect safe, deterministic patterns." image={reflectionIllustration} />
+              <EmptyState title="No patterns yet" description="Check in for a few days so Nuraa can detect useful patterns." image={reflectionIllustration} />
             )}
           </div>
         </Card>
@@ -150,11 +169,22 @@ export function ReportsPage() {
       </section>
 
       <Card className="mt-7 overflow-hidden bg-sage p-6">
-        <p className="text-sm font-bold uppercase tracking-[.12em] text-nuraa">Future reports</p>
-        <h2 className="display mt-3 text-3xl leading-tight text-forest">Personalised reports unlock as Nuraa learns more about your routine.</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/64">Phase 3 only uses deterministic check-in intelligence. Health report uploads, AI analysis, OCR, body scans, and payments remain out of scope.</p>
+        <p className="text-sm font-bold uppercase tracking-[.12em] text-nuraa">Weekly reflection</p>
+        <h2 className="display mt-3 text-3xl leading-tight text-forest">Turn this week’s signals into one next focus.</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/64">Weekly Reflection uses your saved Nuraa signals to summarise what changed, what supported you, and what deserves attention next.</p>
         <Button asChild className="mt-5" size="sm"><Link to="/app/weekly-reflection">Open weekly reflection</Link></Button>
       </Card>
     </DashboardLayout>
+  )
+}
+
+function ReportMetric({ icon: Icon, label, value, detail }: { icon: typeof Utensils; label: string; value: string; detail: string }) {
+  return (
+    <Card className="p-5">
+      <span className="grid size-11 place-items-center rounded-2xl bg-sage text-nuraa"><Icon size={20} /></span>
+      <p className="mt-5 text-2xl font-bold text-forest">{value}</p>
+      <p className="text-sm font-semibold text-forest/72">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-ink/56">{detail}</p>
+    </Card>
   )
 }

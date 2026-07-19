@@ -8,7 +8,7 @@ describe('LandingPage', () => {
     render(<MemoryRouter><LandingPage /></MemoryRouter>)
 
     expect(screen.getByRole('heading', { name: 'Nuraa Free' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Nuraa Pro' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Nuraa Coach' })).toBeInTheDocument()
     const pricingLinks = screen.getAllByRole('link', { name: 'Pricing' })
     expect(pricingLinks).toHaveLength(2)
     pricingLinks.forEach((link) => {

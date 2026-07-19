@@ -66,7 +66,7 @@ function checkin(overrides: Partial<DailyCheckin>): DailyCheckin {
     stress_level: 2,
     sleep_quality: 4,
     sleep_hours: 7.5,
-    notes: JSON.stringify({ body_soreness: 2, motivation_level: 4, reflection: null }),
+    notes: JSON.stringify({ body_soreness: 2, motivation_level: 4, hydration_litres: 2.1, reflection: null }),
     created_at: '2026-06-27T00:00:00.000Z',
     ...overrides,
   }
@@ -87,10 +87,23 @@ describe('Nuraa intelligence engines', () => {
     const signal = buildHealthSignal({ profile, healthProfile, goals: [], preferences, checkin: checkin({}) })
     const score = calculateNuraaScore(signal)
 
+    expect(signal.hydration).toMatchObject({ litres: 2.1, score: 85, confidence: 90 })
     expect(score.category).toMatch(/Ready|Peak|Steady/)
     expect(score.primaryDriver).toBeTruthy()
     expect(score.limitingFactor).toBeTruthy()
     expect(score.recommendations.length).toBeGreaterThan(0)
+  })
+
+  it('keeps hydration neutral and low confidence when water is not logged', () => {
+    const signal = buildHealthSignal({
+      profile,
+      healthProfile,
+      goals: [],
+      preferences,
+      checkin: checkin({ notes: JSON.stringify({ body_soreness: 2, motivation_level: 4, reflection: null }) }),
+    })
+
+    expect(signal.hydration).toMatchObject({ litres: null, score: 70, confidence: 18 })
   })
 
   it('triggers caution rules without diagnostic language', () => {

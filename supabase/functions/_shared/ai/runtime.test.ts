@@ -57,6 +57,26 @@ describe('AI gateway runtime hardening', () => {
     expect(data.ai_responses).toHaveLength(0)
   })
 
+  it('allows a consented product Coach entrypoint without an internal tester row', async () => {
+    const data = baseEnabledData({ testers: [] })
+    const provider = providerWithPayload(payloadForTask('ask_about_today'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: { ...envForTask('ask_about_today'), ENABLE_AI_COACH: 'true', ENABLE_AI_COACH_DASHBOARD_ENTRY: 'true' },
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: { taskType: 'ask_about_today', entryPoint: 'dashboard_ask_today', idempotencyKey: 'product_without_tester' },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(200)
+    expect(result.response.status).toBe('completed')
+    expect(provider.generateStructured).toHaveBeenCalledTimes(1)
+    expect(data.context_requests).toHaveLength(1)
+    expect(data.ai_executions.at(-1)?.status).toBe('completed')
+  })
+
   it.each([
     ['future_dashboard'],
     ['future_coach'],
@@ -285,6 +305,48 @@ describe('AI gateway runtime hardening', () => {
     expect(data.coach_messages.at(-1)?.source_references).toContain('proactive_card:00000000-0000-4000-8000-000000000701')
   })
 
+  it('persists a bounded Coach follow-up turn on an active user-owned conversation', async () => {
+    const data = baseEnabledData()
+    data.coach_conversations.push({
+      id: '00000000-0000-4000-8000-000000000901',
+      user_id: userId,
+      entry_point: 'coach_home',
+      initial_task_type: 'ask_about_today',
+      status: 'active',
+      deterministic_title: 'Today’s guidance',
+      latest_context_envelope_id: null,
+      last_context_at: null,
+      last_active_at: '2026-06-29T13:55:00.000Z',
+      archived_at: null,
+      deleted_at: null,
+    })
+    const provider = providerWithPayload(payloadForTask('coach_follow_up'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForTask('coach_follow_up'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: {
+        taskType: 'coach_follow_up',
+        entryPoint: 'coach_follow_up',
+        conversationId: '00000000-0000-4000-8000-000000000901',
+        userInput: { question: 'What should I prioritise today?' },
+        idempotencyKey: 'follow-up-test',
+      },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(200)
+    expect(result.response.status).toBe('completed')
+    expect(result.response.conversationId).toBe('00000000-0000-4000-8000-000000000901')
+    expect(provider.generateStructured).toHaveBeenCalledTimes(1)
+    expect(data.coach_messages.at(-2)?.role).toBe('user')
+    expect(data.coach_messages.at(-2)?.content).toBe('What should I prioritise today?')
+    expect(data.coach_messages.at(-1)?.role).toBe('nuraa')
+    expect(data.coach_messages.at(-1)?.task_type).toBe('coach_follow_up')
+  })
+
   it('blocks card-to-Coach before context creation when the handoff flag is disabled', async () => {
     const data = baseEnabledData()
     const flag = data.ai_feature_flags.find((row) => row.feature_name === 'ENABLE_CARD_TO_COACH')
@@ -321,7 +383,7 @@ function envForTask(taskType: TaskType): Record<string, string | undefined> {
     ENABLE_AI_DAILY_BRIEF: taskType === 'rewrite_daily_brief' ? 'true' : undefined,
     ENABLE_AI_SCORE_EXPLANATION: taskType === 'explain_score' ? 'true' : undefined,
     ENABLE_AI_ASK_ABOUT_TODAY: taskType === 'ask_about_today' ? 'true' : undefined,
-    ENABLE_AI_COACH: taskType === 'coach_from_card' ? 'true' : undefined,
+    ENABLE_AI_COACH: taskType === 'coach_from_card' || taskType === 'coach_follow_up' ? 'true' : undefined,
     ENABLE_CARD_TO_COACH: taskType === 'coach_from_card' ? 'true' : undefined,
     AI_INTERNAL_ACCESS_REQUIRED: 'true',
     AI_RATE_LIMIT_MAX_REQUESTS: '10',
@@ -339,6 +401,7 @@ function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } =
       { feature_name: 'ENABLE_AI_SCORE_EXPLANATION', enabled: true },
       { feature_name: 'ENABLE_AI_ASK_ABOUT_TODAY', enabled: true },
       { feature_name: 'ENABLE_AI_COACH', enabled: true },
+      { feature_name: 'ENABLE_AI_COACH_DASHBOARD_ENTRY', enabled: true },
       { feature_name: 'ENABLE_CARD_TO_COACH', enabled: true },
     ],
     ai_internal_testers: options.testers ?? [{ user_id: userId, enabled: true, consent_granted: true }],
@@ -347,6 +410,7 @@ function baseEnabledData(options: { testers?: Array<Record<string, unknown>> } =
       { id: 'contract-brief', name: 'rewrite_daily_brief', version: 'phase4a.v1', task_type: 'rewrite_daily_brief' },
       { id: 'contract-score', name: 'explain_score', version: 'phase4a.v1', task_type: 'explain_score' },
       { id: 'contract-today', name: 'ask_about_today', version: 'phase4a.v1', task_type: 'ask_about_today' },
+      { id: 'contract-follow-up', name: 'coach_follow_up', version: 'phase4b.v1', task_type: 'coach_follow_up' },
       { id: 'contract-card', name: 'coach_from_card', version: 'phase4b.v1', task_type: 'coach_from_card' },
     ],
     ai_model_policies: [
@@ -434,6 +498,19 @@ function payloadForTask(taskType: TaskType): AIResponsePayload {
       sourceReferences: ['proactive_card:00000000-0000-4000-8000-000000000701', 'score_factors:00000000-0000-4000-8000-000000000401'],
     }
   }
+  if (taskType === 'coach_follow_up') {
+    return {
+      headline: 'Prioritise one steady action',
+      summary: 'Given today’s context, keep the plan practical and low-friction.',
+      factualBasis: [{ label: 'Current score', sourceReference: 'score:00000000-0000-4000-8000-000000000101' }],
+      interpretations: [{ statement: 'A simple action is more useful than adding intensity today.', confidence: 'moderate' }],
+      primaryAction: { title: 'Take a breathing break', detail: 'Use two quiet minutes before your next demanding block.' },
+      clarificationQuestion: null,
+      suggestedPrompts: ['What is one simple action I can take?'],
+      confidenceNote: 'Based on deterministic Nuraa context.',
+      sourceReferences: ['score:00000000-0000-4000-8000-000000000101'],
+    }
+  }
   return {
     headline: 'Focus on one steady action',
     summary: 'Today looks suitable for a calm, consistent routine.',
@@ -478,6 +555,7 @@ function fakeClient(data: Record<string, Array<Record<string, unknown>>>): Runti
             if (table === 'ai_executions' && !record.started_at) record.started_at = new Date('2026-06-29T14:00:00.000Z').toISOString()
             if (table === 'ai_responses' && !record.created_at) record.created_at = new Date('2026-06-29T14:00:00.000Z').toISOString()
             if (table === 'context_envelopes' && !record.expires_at) record.expires_at = new Date('2026-06-29T14:15:00.000Z').toISOString()
+            if (table === 'coach_messages' && !record.created_at) record.created_at = new Date('2026-06-29T14:00:00.000Z').toISOString()
             data[table] = [...(data[table] ?? []), record]
           }
           return builder

@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase'
-import { getAIInternalAccessStatus, invokeAIGateway } from '@/services/aiGateway'
+import { invokeAIGateway } from '@/services/aiGateway'
 import type { AIDetailLevel, AIGatewayResponse, CoachResponsePayload } from '@/features/ai/types'
 import type { CoachConversation, CoachFeedback, CoachMessage, UserAIPreferences } from '@/types/database'
 
@@ -24,14 +24,15 @@ type CoachControlResponse<T = unknown> = { ok: true } & T
 
 export async function getCoachEligibility(): Promise<CoachEligibility> {
   const supabase = getSupabaseClient()
-  const access = await getAIInternalAccessStatus()
   const user = await supabase.auth.getUser()
   const userId = user.data.user?.id
   if (!userId) return { internalEnabled: false, internalConsentGranted: false, coachEnabled: false, responseDetail: 'balanced' }
   const preferences = await getCoachPreferences(userId)
   return {
-    internalEnabled: access.enabled,
-    internalConsentGranted: access.consentGranted,
+    // Product Coach access is controlled by authentication, feature flags, and
+    // user AI consent. The ai_internal_testers table remains only for /dev tools.
+    internalEnabled: true,
+    internalConsentGranted: true,
     coachEnabled: Boolean(preferences?.ai_coaching_enabled),
     responseDetail: preferences?.response_detail ?? 'balanced',
   }

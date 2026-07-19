@@ -48,7 +48,7 @@ export function WeeklyReflectionPage() {
 
   if (!userId) return <Navigate to="/login" replace />
   if (eligibility.isLoading) return <div className="p-6 sm:p-10"><LoadingSkeleton className="h-96" /></div>
-  if (!eligibility.data?.internalEnabled || !eligibility.data.internalConsentGranted || !eligibility.data.coachEnabled) return <Navigate to="/app/dashboard" replace />
+  if (!eligibility.data?.coachEnabled) return <Navigate to="/app/dashboard" replace />
 
   const current = reflection.data?.reflection
 

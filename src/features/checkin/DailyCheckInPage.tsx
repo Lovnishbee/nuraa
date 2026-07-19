@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Battery, Brain, Heart, Moon, Smile, Sparkles, Zap } from 'lucide-react'
+import { Battery, Brain, Droplets, Heart, Moon, Smile, Sparkles, Zap } from 'lucide-react'
 import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
@@ -26,6 +26,7 @@ const checkInSchema = z.object({
   stressLevel: z.number().min(1).max(5),
   motivation: z.number().min(1).max(5),
   sleepHours: z.coerce.number().min(0).max(16).optional(),
+  hydrationLitres: z.coerce.number().min(0).max(8).optional(),
   reflection: z.string().max(300).optional(),
 })
 
@@ -56,8 +57,9 @@ export function DailyCheckInPage() {
   const markSaved = useCheckInStore((state) => state.markSaved)
   const { control, register, handleSubmit, watch, formState: { errors } } = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
-    defaultValues: { mood: 'good', energyLevel: 3, sleepQuality: 3, soreness: 2, stressLevel: 3, motivation: 3, sleepHours: 7, reflection: draftNotes },
+    defaultValues: { mood: 'good', energyLevel: 3, sleepQuality: 3, soreness: 2, stressLevel: 3, motivation: 3, sleepHours: 7, hydrationLitres: 2, reflection: draftNotes },
   })
+  const reflectionRegistration = register('reflection')
 
   const profile = queryClient.getQueryData<Awaited<ReturnType<typeof getProfileBundle>>>(['profile', user.id])
   const mutation = useMutation({
@@ -128,14 +130,28 @@ export function DailyCheckInPage() {
               ))}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+            <div className="grid gap-4 md:grid-cols-[180px_180px_1fr]">
               <label className="block">
                 <span className="mb-2 block text-sm font-bold text-forest">Sleep hours</span>
                 <input type="number" step="0.25" className="h-12 w-full rounded-2xl border border-forest/15 bg-white px-4 text-sm text-ink outline-none focus:border-nuraa focus:ring-2 focus:ring-nuraa/15" {...register('sleepHours')} />
               </label>
               <label className="block">
+                <span className="mb-2 flex items-center gap-1 text-sm font-bold text-forest"><Droplets size={16} className="text-nuraa" /> Water</span>
+                <input type="number" step="0.1" className="h-12 w-full rounded-2xl border border-forest/15 bg-white px-4 text-sm text-ink outline-none focus:border-nuraa focus:ring-2 focus:ring-nuraa/15" {...register('hydrationLitres')} />
+                <span className="mt-1 block text-xs text-ink/45">Litres today</span>
+              </label>
+              <label className="block">
                 <span className="mb-2 block text-sm font-bold text-forest">Reflection</span>
-                <textarea rows={3} className="w-full resize-none rounded-2xl border border-forest/15 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-nuraa focus:ring-2 focus:ring-nuraa/15" placeholder="Anything Nuraa should remember from today?" {...register('reflection')} onChange={(event) => setDraftNotes(event.target.value)} />
+                <textarea
+                  rows={3}
+                  className="w-full resize-none rounded-2xl border border-forest/15 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-nuraa focus:ring-2 focus:ring-nuraa/15"
+                  placeholder="Anything Nuraa should remember from today?"
+                  {...reflectionRegistration}
+                  onChange={(event) => {
+                    void reflectionRegistration.onChange(event)
+                    setDraftNotes(event.target.value)
+                  }}
+                />
                 <span className="mt-1 block text-right text-xs text-ink/45">{watch('reflection')?.length ?? 0}/300</span>
               </label>
             </div>

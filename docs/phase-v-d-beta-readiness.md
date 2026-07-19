@@ -17,15 +17,13 @@ Phase V-D closes the private-beta Phase V loop. It verifies proactive cards, Coa
   - `npm run typecheck:ai-runtime`
   - `npm run test`
   - `npm run build`
-- Test user is the only beta user unless intentionally expanded:
-  - `c01aaab7-0af5-4d5c-acd9-d136cbe6e6cf`
+- Product beta access is available to authenticated users with Coach consent and the required server/database feature flags enabled. `/dev/*` review tools remain restricted to `ai_internal_testers`.
 
 ## Required flags and access
 
 Enable these only for private-beta verification:
 
 - `AI_ENABLED=true`
-- `AI_INTERNAL_ACCESS_REQUIRED=true`
 - `ENABLE_AI_ASK_ABOUT_TODAY=true`
 - `ENABLE_AI_SCORE_EXPLANATION=true`
 - `ENABLE_AI_COACH=true`
@@ -41,16 +39,19 @@ Keep optional AI rewrite flags disabled unless explicitly testing live provider 
 - `ENABLE_AI_CARD_COPY=false`
 - `ENABLE_WEEKLY_REFLECTION_AI_COPY=false`
 
-Confirm rows:
+Confirm product access rows:
 
-- `ai_internal_testers.enabled = true`
-- `ai_internal_testers.consent_granted = true`
 - `user_ai_preferences.ai_coaching_enabled = true`
 - `proactive_guidance_preferences.proactive_guidance_enabled = true`
 
+For `/dev/ai-runtime` and `/dev/proactive-intelligence` only, also confirm:
+
+- `ai_internal_testers.enabled = true`
+- `ai_internal_testers.consent_granted = true`
+
 ## Functional smoke test
 
-1. Log in as the beta test user.
+1. Log in as an authenticated user with Coach consent enabled.
 2. Open `/app/dashboard`.
 3. Confirm the dashboard loads without raw errors, prompts, model names, or internal IDs.
 4. Generate Phase V-A candidates from `/dev/proactive-intelligence` if no cards are available.

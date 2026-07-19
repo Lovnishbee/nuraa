@@ -15,14 +15,14 @@ export function NuraaScoreCard({ score = 0, category = 'Setting up your readines
           <p className="mt-3 text-sm leading-6 text-ink/68">{reason || 'Complete your first daily check-in to begin building your Nuraa Score.'}</p>
         </div>
       </div>
-      <div className="mt-6 rounded-[22px] border border-nuraa/12 bg-sage/70 p-4">
+      <div className="mt-6 rounded-[22px] border border-nuraa/12 bg-sage/58 p-4">
         <p className="text-sm font-semibold text-forest">{hasBaseline ? 'Building your baseline' : 'Ready after your first check-in'}</p>
         <p className="mt-1 text-xs leading-5 text-ink/64">{note || 'Your score gets smarter as you log sleep, mood, meals, and movement.'}</p>
         {hasBaseline && (
           <div className="mt-4 grid gap-2 text-xs font-semibold text-forest/72 sm:grid-cols-3">
-            <span>Confidence: {confidence ?? 0}%</span>
-            <span>Strongest: {primaryDriver ?? '—'}</span>
-            <span>Needs care: {limitingFactor ?? '—'}</span>
+            <span>Confidence {confidence ?? 0}%</span>
+            <span>Strongest {primaryDriver ?? '—'}</span>
+            <span>Needs care {limitingFactor ?? '—'}</span>
           </div>
         )}
       </div>

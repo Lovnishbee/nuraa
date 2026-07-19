@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { getPostAuthDestination, getStoredOnboardingResumePath } from '@/features/onboarding/progress'
 import { isSupabaseConfigured } from '@/lib/supabase'
-import { getProfileBundle } from '@/services/profile'
+import { getOrCreateProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 
 function LoadingGate() {
@@ -15,7 +15,7 @@ export function ProtectedRoute() {
   const location = useLocation()
   const profile = useQuery({
     queryKey: ['profile', user?.id],
-    queryFn: () => getProfileBundle(user!.id),
+    queryFn: () => getOrCreateProfileBundle(user!),
     enabled: Boolean(user && isSupabaseConfigured),
   })
 

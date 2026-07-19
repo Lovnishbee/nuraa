@@ -46,6 +46,22 @@ describe('Phase V-C weekly reflection runtime', () => {
     expect(data.weekly_reflections[0].week_end_date).toBe('2026-07-13')
   })
 
+  it('generates for consented users without internal tester access', async () => {
+    const data = baseData()
+    data.ai_internal_testers = []
+
+    const result = await handleWeeklyReflectionRequest({
+      client: fakeClient(data),
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'generate_weekly_reflection' },
+    })
+
+    expect(result.response).toMatchObject({ status: 'completed' })
+    expect(data.weekly_reflections).toHaveLength(1)
+  })
+
   it('supports viewed, dismissed, and Coach handoff lifecycle actions for owned reflections', async () => {
     const data = baseData()
     const client = fakeClient(data)
@@ -89,6 +105,33 @@ describe('Phase V-C weekly reflection runtime', () => {
     expect(data.weekly_reflections[0].viewed_at).toBeTruthy()
     expect(data.weekly_reflections[0].dismissed_at).toBeTruthy()
     expect(data.weekly_reflections[0].converted_to_coach_at).toBeTruthy()
+  })
+
+  it('generates a limited-data reflection when optional context reads fail', async () => {
+    const data = baseData()
+
+    const result = await handleWeeklyReflectionRequest({
+      client: fakeClient(data, {
+        failingTables: [
+          'health_signals',
+          'daily_briefs',
+          'insight_events',
+          'user_goals',
+          'proactive_card_feedback',
+          'daily_checkins',
+        ],
+      }),
+      env: { ENABLE_WEEKLY_REFLECTION: 'true' },
+      userId,
+      now: new Date('2026-07-12T20:30:00.000Z'),
+      body: { action: 'generate_weekly_reflection' },
+    })
+
+    expect(result.response).toMatchObject({ status: 'completed' })
+    expect(data.weekly_reflections).toHaveLength(1)
+    expect(data.weekly_reflections[0].summary_payload).toMatchObject({
+      headline: expect.any(String),
+    })
   })
 
   it('blocks cross-user lifecycle actions from touching another user reflection', async () => {
@@ -155,7 +198,7 @@ function factors(date: string, sleepScore: number, stressScore: number) {
   return { id: crypto.randomUUID(), user_id: userId, score_date: date, sleep_score: sleepScore, stress_score: stressScore, recovery_score: 72, activity_score: 70, nutrition_score: 70, hydration_score: 68, confidence: 70 }
 }
 
-function fakeClient(data: Record<string, Array<Record<string, unknown>>>): WeeklyReflectionSupabaseClient {
+function fakeClient(data: Record<string, Array<Record<string, unknown>>>, options: { failingTables?: string[] } = {}): WeeklyReflectionSupabaseClient {
   return {
     from(table: string) {
       let filters: Array<{ column: string; value: unknown; op: 'eq' | 'gte' | 'lte' }> = []
@@ -195,9 +238,15 @@ function fakeClient(data: Record<string, Array<Record<string, unknown>>>): Weekl
           limitCount = count
           return builder
         },
-        maybeSingle: async () => ({ data: applyPendingWrite()[0] ?? null, error: null }),
-        single: async () => ({ data: applyPendingWrite()[0], error: null }),
-        then: (resolve: (value: { data: unknown[]; error: null }) => unknown) => Promise.resolve(resolve({ data: applyPendingWrite(), error: null })),
+        maybeSingle: async () => tableResult(applyPendingWrite()[0] ?? null),
+        single: async () => tableResult(applyPendingWrite()[0]),
+        then: (resolve: (value: { data: unknown[] | null; error: Error | null }) => unknown) => Promise.resolve(resolve(tableResult(applyPendingWrite()))),
+      }
+      function tableResult<T>(dataValue: T) {
+        if (options.failingTables?.includes(table)) {
+          return { data: null, error: new Error(`${table}_failed`) }
+        }
+        return { data: dataValue, error: null }
       }
       function applyPendingWrite() {
         if (pendingWrite?.type === 'upsert') {

@@ -6,6 +6,7 @@ import { MobileHeader } from '@/components/app/MobileHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { getCurrentTimestamp } from '@/lib/date'
 import { getAIInternalAccessStatus } from '@/services/aiGateway'
 import { runInternalAITask } from '../api'
 import type { AITaskType } from '../types'
@@ -30,7 +31,7 @@ export function AIRuntimeDevPage() {
       taskType,
       detailLevel: 'balanced',
       userInput: question.trim() ? { question: question.trim() } : undefined,
-      idempotencyKey: `dev_${taskType}_${Date.now()}`,
+      idempotencyKey: `dev_${taskType}_${getCurrentTimestamp().replace(/[^0-9A-Za-z]/g, '')}`,
     }),
   })
 

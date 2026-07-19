@@ -1,6 +1,6 @@
 import { generateProactiveCandidates } from './candidate-engine.ts'
 import { generateProactiveCards, snoozeUntil } from './card-engine.ts'
-import { buildProactiveSnapshot, evaluateProactiveAccess, getActiveProactiveCards, getOwnedCard, getProactiveSummary, insertProactiveCardFeedback, persistInsightCandidates, persistProactiveCards, updateProactiveCardStatus, writeCardEvent } from './repository.ts'
+import { buildProactiveSnapshot, evaluateProactiveAccess, getActiveProactiveCards, getOwnedCard, getProactiveSummary, insertProactiveCardFeedback, persistInsightCandidates, persistProactiveCards, tryWriteCardEvent, updateProactiveCardStatus } from './repository.ts'
 import type { InsightCandidate, ProactiveCard, ProactiveCardFeedbackType, ProactiveGenerationResult, ProactiveRuntimeEnv, ProactiveSupabaseClient } from './types.ts'
 
 export type ProactiveEngineInput = {
@@ -82,20 +82,20 @@ export async function handleProactiveEngineRequest(options: {
 
   if (parsed.input.action === 'mark_shown') {
     const card = await updateProactiveCardStatus(options.client, options.userId, parsed.input.cardId!, { status: 'shown', shown_at: new Date().toISOString() })
-    await writeCardEvent(options.client, options.userId, card.id!, 'shown')
+    await tryWriteCardEvent(options.client, options.userId, card.id!, 'shown')
     return { httpStatus: 200, response: { requestId, status: 'completed', candidates: [], cards: [card], card } }
   }
 
   if (parsed.input.action === 'dismiss_card') {
     const card = await updateProactiveCardStatus(options.client, options.userId, parsed.input.cardId!, { status: 'dismissed', dismissed_at: new Date().toISOString() })
-    await writeCardEvent(options.client, options.userId, card.id!, 'dismissed')
+    await tryWriteCardEvent(options.client, options.userId, card.id!, 'dismissed')
     return { httpStatus: 200, response: { requestId, status: 'completed', candidates: [], cards: [], card } }
   }
 
   if (parsed.input.action === 'snooze_card') {
     const now = options.now ?? new Date()
     const card = await updateProactiveCardStatus(options.client, options.userId, parsed.input.cardId!, { status: 'snoozed', snoozed_until: snoozeUntil(now) })
-    await writeCardEvent(options.client, options.userId, card.id!, 'snoozed', { snoozedUntil: card.snoozed_until })
+    await tryWriteCardEvent(options.client, options.userId, card.id!, 'snoozed', { snoozedUntil: card.snoozed_until })
     return { httpStatus: 200, response: { requestId, status: 'completed', candidates: [], cards: [], card } }
   }
 
@@ -111,7 +111,7 @@ export async function handleProactiveEngineRequest(options: {
 
   if (parsed.input.action === 'start_coach_handoff') {
     const card = await getOwnedCard(options.client, options.userId, parsed.input.cardId!)
-    await writeCardEvent(options.client, options.userId, card.id!, 'coach_handoff_started', { candidateId: card.candidate_id })
+    await tryWriteCardEvent(options.client, options.userId, card.id!, 'coach_handoff_started', { candidateId: card.candidate_id })
     return { httpStatus: 200, response: { requestId, status: 'completed', candidates: [], cards: [card], card } }
   }
 

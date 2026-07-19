@@ -10,29 +10,36 @@ export type DailyCheckInInput = {
   stressLevel: number
   motivation: number
   sleepHours?: number
+  hydrationLitres?: number
   reflection?: string
 }
 
-export function buildCheckInNotes(input: Pick<DailyCheckInInput, 'soreness' | 'motivation' | 'reflection'>) {
+export function buildCheckInNotes(input: Pick<DailyCheckInInput, 'soreness' | 'motivation' | 'hydrationLitres' | 'reflection'>) {
   return JSON.stringify({
     body_soreness: input.soreness,
     motivation_level: input.motivation,
+    hydration_litres: normalizeOptionalNumber(input.hydrationLitres),
     reflection: input.reflection?.trim() || null,
   })
 }
 
 export function parseCheckInNotes(notes: string | null) {
-  if (!notes) return { body_soreness: null, motivation_level: null, reflection: null }
+  if (!notes) return { body_soreness: null, motivation_level: null, hydration_litres: null, reflection: null }
   try {
-    const parsed = JSON.parse(notes) as { body_soreness?: number; motivation_level?: number; reflection?: string | null }
+    const parsed = JSON.parse(notes) as { body_soreness?: number; motivation_level?: number; hydration_litres?: number; reflection?: string | null }
     return {
       body_soreness: parsed.body_soreness ?? null,
       motivation_level: parsed.motivation_level ?? null,
+      hydration_litres: parsed.hydration_litres ?? null,
       reflection: parsed.reflection ?? null,
     }
   } catch {
-    return { body_soreness: null, motivation_level: null, reflection: notes }
+    return { body_soreness: null, motivation_level: null, hydration_litres: null, reflection: notes }
   }
+}
+
+function normalizeOptionalNumber(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 export async function saveDailyCheckIn(userId: string, input: DailyCheckInInput): Promise<DailyCheckin> {

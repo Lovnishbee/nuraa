@@ -46,6 +46,38 @@ export type DailyCheckin = {
   notes: string | null
   created_at: string
 }
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export type MealLog = {
+  id: string
+  user_id: string
+  meal_date: string
+  meal_type: MealType
+  meal_name: string
+  notes: string | null
+  calories: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  logged_at: string
+  created_at: string
+  updated_at: string
+}
+export type WorkoutActivityType = 'walk' | 'run' | 'strength' | 'mobility' | 'yoga' | 'cycling' | 'sport' | 'other'
+export type WorkoutIntensity = 'easy' | 'moderate' | 'hard'
+export type WorkoutLog = {
+  id: string
+  user_id: string
+  workout_date: string
+  activity_type: WorkoutActivityType
+  title: string
+  duration_minutes: number
+  intensity: WorkoutIntensity
+  calories_burned: number | null
+  notes: string | null
+  completed_at: string
+  created_at: string
+  updated_at: string
+}
 export type HealthSignalRow = {
   id: string
   user_id: string
