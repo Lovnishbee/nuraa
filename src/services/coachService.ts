@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase'
+import { invokeAuthenticatedFunction } from '@/services/supabaseFunction'
 import { invokeAIGateway } from '@/services/aiGateway'
 import type { AIDetailLevel, AIGatewayResponse, CoachResponsePayload } from '@/features/ai/types'
 import type { CoachConversation, CoachFeedback, CoachMessage, UserAIPreferences } from '@/types/database'
@@ -172,10 +173,7 @@ export function payloadToCoachMessage(response: AIGatewayResponse): CoachMessage
 }
 
 async function invokeCoachControl<T = CoachControlResponse>(body: Record<string, unknown>): Promise<T> {
-  const result = await getSupabaseClient().functions.invoke<T>('coach-control', { body })
-  if (result.error) throw result.error
-  if (!result.data) throw new Error('Coach control returned no data.')
-  return result.data
+  return invokeAuthenticatedFunction<T>('coach-control', body)
 }
 
 function toCoachMessageView(message: CoachMessage): CoachMessageView {

@@ -1,5 +1,5 @@
-import { getSupabaseClient } from '@/lib/supabase'
 import { invokeAIGateway } from '@/services/aiGateway'
+import { invokeAuthenticatedFunction } from '@/services/supabaseFunction'
 import type { AIDetailLevel, AIGatewayResponse } from '@/features/ai/types'
 import type { WeeklyReflection } from '@/types/database'
 
@@ -45,9 +45,5 @@ export async function startWeeklyReflectionCoach(id: string, detailLevel: AIDeta
 }
 
 async function invokeWeeklyReflectionEngine(body: WeeklyReflectionAction): Promise<WeeklyReflectionEngineResponse> {
-  const result = await getSupabaseClient().functions.invoke<WeeklyReflectionEngineResponse>('weekly-reflection-engine', { body })
-  if (result.error) throw result.error
-  if (!result.data) throw new Error('Weekly reflection engine returned no data.')
-  return result.data
+  return invokeAuthenticatedFunction<WeeklyReflectionEngineResponse>('weekly-reflection-engine', body)
 }
-

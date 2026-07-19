@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase'
+import { invokeAuthenticatedFunction } from '@/services/supabaseFunction'
 import type { ProactiveCard, ProactiveCardFeedbackType, ProactiveEngineInput, ProactiveEngineResponse } from '@/features/proactive/types'
 
 export type ProactiveCardsSummary = {
@@ -35,8 +35,5 @@ export async function startProactiveCardCoachHandoff(cardId: string) {
 }
 
 async function invokeProactiveCards(input: ProactiveEngineInput): Promise<ProactiveEngineResponse> {
-  const result = await getSupabaseClient().functions.invoke<ProactiveEngineResponse>('proactive-cards', { body: input })
-  if (result.error) throw result.error
-  if (!result.data) throw new Error('Proactive cards returned no data.')
-  return result.data
+  return invokeAuthenticatedFunction<ProactiveEngineResponse>('proactive-cards', input)
 }
