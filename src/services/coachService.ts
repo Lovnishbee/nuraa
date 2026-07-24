@@ -134,8 +134,9 @@ export async function sendCoachFollowUp(conversationId: string, question: string
       userInput: { question },
       idempotencyKey,
     }), COACH_FOLLOW_UP_TIMEOUT_MS)
-  } catch {
-    return buildFollowUpFallback(conversationId)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'COACH_FOLLOW_UP_TIMEOUT') return buildFollowUpFallback(conversationId)
+    throw error
   }
 }
 
@@ -188,6 +189,7 @@ function toCoachMessageView(message: CoachMessage): CoachMessageView {
   return {
     id: message.id,
     conversationId: message.conversation_id,
+    localRequestKey: message.client_request_key ?? undefined,
     role: message.role,
     messageType: message.message_type,
     content: message.content ?? (payload ? [payload.headline, payload.summary].filter(Boolean).join('\n\n') : ''),

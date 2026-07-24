@@ -83,13 +83,13 @@ export function CoachPage() {
   })
 
   const followUpMutation = useMutation({
-    mutationFn: ({ question, requestKey }: { question: string; requestKey: string }) => {
-      if (!conversationId) throw new Error('Start a Coach conversation first.')
-      return sendCoachFollowUp(conversationId, question, detailLevel, requestKey)
+    mutationFn: ({ conversationId: followUpConversationId, question, requestKey }: { conversationId: string; question: string; requestKey: string }) => {
+      return sendCoachFollowUp(followUpConversationId, question, detailLevel, requestKey)
     },
-    onMutate: ({ question, requestKey }) => {
+    onMutate: ({ conversationId: followUpConversationId, question, requestKey }) => {
       const optimistic: CoachMessageView = {
         id: `local_${requestKey}`,
+        conversationId: followUpConversationId,
         localRequestKey: requestKey,
         role: 'user',
         messageType: 'coach_follow_up',
@@ -101,11 +101,11 @@ export function CoachPage() {
     },
     onSuccess: async (response, variables) => {
       setOptimisticMessages((current) => {
-        const withoutSubmittedMessage = current.filter((message) => message.localRequestKey !== variables.requestKey)
-        return [...withoutSubmittedMessage, payloadToCoachMessage(response)]
+        if (current.some((message) => message.id === response.messageId || message.id === response.requestId)) return current
+        return [...current, payloadToCoachMessage(response)]
       })
       await queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
-      await queryClient.invalidateQueries({ queryKey: ['coach-messages', conversationId] })
+      await queryClient.invalidateQueries({ queryKey: ['coach-messages', variables.conversationId] })
     },
   })
 
@@ -155,7 +155,11 @@ export function CoachPage() {
               message={message}
               conversationId={conversationId}
               userId={userId}
-              onPrompt={(prompt) => followUpMutation.mutate({ question: prompt, requestKey: `follow_${crypto.randomUUID()}` })}
+              onPrompt={(prompt) => {
+                const activeMessageConversationId = message.conversationId ?? conversationId
+                if (!activeMessageConversationId) return
+                followUpMutation.mutate({ conversationId: activeMessageConversationId, question: prompt, requestKey: `follow_${crypto.randomUUID()}` })
+              }}
             />
           ))}
           {(startMutation.error || followUpMutation.error) && (
@@ -168,7 +172,10 @@ export function CoachPage() {
         <CoachComposer
           disabled={!conversationId || !conversationCanReceiveFollowUp || followUpMutation.isPending || startMutation.isPending}
           suggestedPrompts={lastSuggestedPrompts(visibleMessages)}
-          onSend={(question) => followUpMutation.mutate({ question, requestKey: `follow_${crypto.randomUUID()}` })}
+          onSend={(question) => {
+            if (!conversationId) return
+            followUpMutation.mutate({ conversationId, question, requestKey: `follow_${crypto.randomUUID()}` })
+          }}
         />
       </main>
 
@@ -180,6 +187,7 @@ export function CoachPage() {
           onOpen={(id) => {
             setConversationId(id)
             setOptimisticMessages([])
+            navigate(`/app/coach?conversation=${id}`, { replace: true })
           }}
           onArchive={(id) => archiveCoachConversation(id).then(() => queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] }))}
           onReopen={(id) => reopenCoachConversation(id).then(() => queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] }))}
