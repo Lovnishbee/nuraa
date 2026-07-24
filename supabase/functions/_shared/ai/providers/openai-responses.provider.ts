@@ -82,7 +82,11 @@ export class OpenAIResponsesProvider implements AIProvider {
 }
 
 function parseStructuredOutput<T>(json: Record<string, unknown>): T {
-  if (typeof json.output_text === 'string') return JSON.parse(json.output_text) as T
+  if (json.status === 'incomplete') {
+    const reason = readIncompleteReason(json)
+    throw providerError(reason ? `OPENAI_OUTPUT_INCOMPLETE_${sanitizeCode(reason)}` : 'OPENAI_OUTPUT_INCOMPLETE')
+  }
+  if (typeof json.output_text === 'string') return parseJsonOutput<T>(json.output_text)
   const output = Array.isArray(json.output) ? json.output : []
   for (const item of output) {
     if (!item || typeof item !== 'object') continue
@@ -91,10 +95,25 @@ function parseStructuredOutput<T>(json: Record<string, unknown>): T {
     for (const contentItem of content) {
       if (!contentItem || typeof contentItem !== 'object') continue
       const record = contentItem as Record<string, unknown>
-      if (typeof record.text === 'string') return JSON.parse(record.text) as T
+      if (typeof record.text === 'string') return parseJsonOutput<T>(record.text)
     }
   }
   throw providerError('OPENAI_OUTPUT_PARSE_FAILED')
+}
+
+function parseJsonOutput<T>(value: string): T {
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    throw providerError('OPENAI_OUTPUT_PARSE_FAILED')
+  }
+}
+
+function readIncompleteReason(json: Record<string, unknown>): string | undefined {
+  const details = json.incomplete_details
+  if (!details || typeof details !== 'object') return undefined
+  const reason = (details as Record<string, unknown>).reason
+  return typeof reason === 'string' ? reason : undefined
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

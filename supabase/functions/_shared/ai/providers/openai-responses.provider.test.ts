@@ -59,4 +59,42 @@ describe('OpenAIResponsesProvider', () => {
     await expectation
     vi.useRealTimers()
   })
+
+  it('maps malformed structured output to a stable provider error code', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      id: 'resp_bad_json',
+      output_text: '{"headline":"Ready"',
+    }), { status: 200 }))
+    const provider = new OpenAIResponsesProvider({ OPENAI_API_KEY: 'test' }, () => 'model-test', fetcher as typeof fetch)
+
+    await expect(provider.generateStructured<{ headline: string }>({
+      modelAlias: 'nuraa_fast_structured',
+      instructions: 'Rules',
+      input: { task: 'test' },
+      responseSchemaName: 'DailyBriefRewriteResponse',
+      responseSchema: getJsonSchemaForTask('rewrite_daily_brief'),
+      maxOutputTokens: 100,
+      safetyIdentifier: 'hashed-user',
+    })).rejects.toThrow('OPENAI_OUTPUT_PARSE_FAILED')
+  })
+
+  it('maps incomplete Responses API output to a stable provider error code', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      id: 'resp_incomplete',
+      status: 'incomplete',
+      incomplete_details: { reason: 'max_output_tokens' },
+      output_text: '{"headline":"Ready"',
+    }), { status: 200 }))
+    const provider = new OpenAIResponsesProvider({ OPENAI_API_KEY: 'test' }, () => 'model-test', fetcher as typeof fetch)
+
+    await expect(provider.generateStructured<{ headline: string }>({
+      modelAlias: 'nuraa_fast_structured',
+      instructions: 'Rules',
+      input: { task: 'test' },
+      responseSchemaName: 'DailyBriefRewriteResponse',
+      responseSchema: getJsonSchemaForTask('rewrite_daily_brief'),
+      maxOutputTokens: 100,
+      safetyIdentifier: 'hashed-user',
+    })).rejects.toThrow('OPENAI_OUTPUT_INCOMPLETE_max_output_tokens')
+  })
 })
