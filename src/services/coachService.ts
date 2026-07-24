@@ -14,6 +14,7 @@ export type CoachEligibility = {
 export type CoachMessageView = {
   id: string
   localRequestKey?: string
+  conversationId?: string
   role: 'user' | 'nuraa' | 'system'
   messageType: CoachMessage['message_type']
   content: string
@@ -169,6 +170,7 @@ export function payloadToCoachMessage(response: AIGatewayResponse): CoachMessage
   const payload = response.payload && typeof response.payload === 'object' ? response.payload as CoachResponsePayload : null
   return {
     id: response.messageId ?? response.requestId,
+    conversationId: response.conversationId,
     role: 'nuraa',
     messageType: response.status === 'safety_routed' ? 'safety_response' : response.fallbackUsed ? 'fallback' : response.taskType === 'explain_score' ? 'score_explanation' : response.taskType === 'ask_about_today' ? 'coach_opening' : 'coach_follow_up',
     content: payload ? [payload.headline, payload.summary].filter(Boolean).join('\n\n') : 'Nuraa guidance is unavailable.',
@@ -185,6 +187,7 @@ function toCoachMessageView(message: CoachMessage): CoachMessageView {
   const payload = message.structured_payload && typeof message.structured_payload === 'object' ? message.structured_payload as CoachResponsePayload : null
   return {
     id: message.id,
+    conversationId: message.conversation_id,
     role: message.role,
     messageType: message.message_type,
     content: message.content ?? (payload ? [payload.headline, payload.summary].filter(Boolean).join('\n\n') : ''),

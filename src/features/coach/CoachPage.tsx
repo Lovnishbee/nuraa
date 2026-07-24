@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Archive, History, Info, Loader2, MessageCircle, Send, Sparkles, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react'
-import { Navigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
@@ -38,6 +38,7 @@ export function CoachPage() {
   const user = useAuthStore((state) => state.user)
   const userId = user?.id
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const requestedAction = searchParams.get('action')
   const requestedCardId = searchParams.get('card')
@@ -56,11 +57,12 @@ export function CoachPage() {
   const visibleMessages = useMemo(() => {
     const byId = new Map<string, CoachMessageView>()
     for (const message of [...(messages.data ?? []), ...optimisticMessages]) {
-      const key = message.localRequestKey ?? `${message.role}:${message.messageType}:${message.content}`
+      if (message.conversationId && conversationId && message.conversationId !== conversationId) continue
+      const key = message.localRequestKey ?? coachMessageFingerprint(message)
       if (!byId.has(key)) byId.set(key, message)
     }
     return Array.from(byId.values())
-  }, [messages.data, optimisticMessages])
+  }, [conversationId, messages.data, optimisticMessages])
 
   const startMutation = useMutation({
     mutationFn: async (action: string | null) => {
@@ -70,7 +72,10 @@ export function CoachPage() {
       return startCoachHome(detailLevel)
     },
     onSuccess: async (response) => {
-      if (response.conversationId) setConversationId(response.conversationId)
+      if (response.conversationId) {
+        setConversationId(response.conversationId)
+        navigate(`/app/coach?conversation=${response.conversationId}`, { replace: true })
+      }
       setOptimisticMessages([payloadToCoachMessage(response)])
       await queryClient.invalidateQueries({ queryKey: ['coach-conversations', userId] })
       if (response.conversationId) await queryClient.invalidateQueries({ queryKey: ['coach-messages', response.conversationId] })
@@ -136,6 +141,7 @@ export function CoachPage() {
             setConversationId(null)
             setOptimisticMessages([])
             startedActionRef.current = null
+            navigate('/app/coach', { replace: true })
             startMutation.mutate(null)
           }}>Start fresh</Button>
         </header>
@@ -185,6 +191,23 @@ export function CoachPage() {
       </aside>
     </div>
   )
+}
+
+function coachMessageFingerprint(message: CoachMessageView) {
+  const payload = message.payload
+  return [
+    message.role,
+    message.messageType,
+    normalizeMessageText(payload?.headline),
+    normalizeMessageText(payload?.summary),
+    normalizeMessageText(payload?.primaryAction?.title ?? payload?.primaryFocus?.title),
+    normalizeMessageText(payload?.primaryAction?.detail ?? payload?.primaryFocus?.detail),
+    normalizeMessageText(message.content),
+  ].join(':')
+}
+
+function normalizeMessageText(value: unknown) {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().toLowerCase() : ''
 }
 
 function CoachConsent({ userId, detailLevel }: { userId: string; detailLevel: AIDetailLevel }) {
