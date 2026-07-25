@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { ProfilePage } from './ProfilePage'
-import { getCoachEligibility } from '@/services/coachService'
+import { getCoachEligibility, type CoachEligibility } from '@/services/coachService'
 import { getProfileBundle, updateProfileFoundation, type ProfileBundle } from '@/services/profile'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -91,6 +91,24 @@ function makeBundle(overrides: Partial<ProfileBundle> = {}): ProfileBundle {
   return { ...bundle, ...overrides }
 }
 
+function coachEligibility(overrides: Partial<CoachEligibility> = {}): CoachEligibility {
+  return {
+    internalEnabled: true,
+    internalConsentGranted: true,
+    coachAvailable: true,
+    dashboardCoachAvailable: true,
+    cardToCoachAvailable: true,
+    scoreExplanationAvailable: true,
+    coachEnabled: true,
+    dashboardCoachEnabled: true,
+    cardToCoachEnabled: true,
+    scoreExplanationEnabled: true,
+    responseDetail: 'balanced',
+    unavailableReason: null,
+    ...overrides,
+  }
+}
+
 function renderProfilePage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   useAuthStore.setState({ user: testUser, ready: true })
@@ -146,7 +164,7 @@ describe('ProfilePage', () => {
     })
 
     vi.mocked(getProfileBundle).mockResolvedValue(initialBundle)
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: false, internalConsentGranted: false, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(updateProfileFoundation).mockResolvedValue(updatedBundle)
     const queryClient = renderProfilePage()
 

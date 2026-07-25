@@ -74,6 +74,9 @@ export function DashboardPage() {
   const workoutStatus = queryStatus(workouts.isLoading, workouts.isError, workoutSummary.sessions > 0)
   const trendValues = dashboard.data?.scoreHistory.map((item) => item.total_score ?? 70) ?? []
   const showCoachActions = Boolean(coachEligibility.data?.coachEnabled)
+  const showDashboardCoachActions = Boolean(coachEligibility.data?.dashboardCoachEnabled)
+  const showScoreExplanationAction = Boolean(coachEligibility.data?.scoreExplanationEnabled)
+  const showCardToCoachActions = Boolean(coachEligibility.data?.cardToCoachEnabled)
   const proactiveCards = useQuery({
     queryKey: ['proactive-cards', user.id],
     queryFn: getProactiveCards,
@@ -105,11 +108,11 @@ export function DashboardPage() {
             primaryDriver={score?.primary_driver}
             limitingFactor={score?.limiting_factor}
             hasBaseline={Boolean(score)}
-            coachActionHref={showCoachActions ? '/app/coach?action=explain_score' : undefined}
+            coachActionHref={showScoreExplanationAction ? '/app/coach?action=explain_score' : undefined}
             status={scoreStatus}
             onRetry={() => void dashboard.refetch()}
           />
-          <DailyBriefCard brief={brief} coachActionHref={showCoachActions ? '/app/coach?action=ask_today' : undefined} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(brief))} onRetry={() => void dashboard.refetch()} />
+          <DailyBriefCard brief={brief} coachActionHref={showDashboardCoachActions ? '/app/coach?action=ask_today' : undefined} status={queryStatus(dashboard.isLoading, dashboard.isError, Boolean(brief))} onRetry={() => void dashboard.refetch()} />
         </section>
 
         <section>
@@ -119,7 +122,7 @@ export function DashboardPage() {
         <ProactiveGuidanceSection
           cards={proactiveCards.data?.cards ?? []}
           enabled={proactiveEnabled}
-          coachEnabled={showCoachActions}
+          coachEnabled={showCardToCoachActions}
           isLoading={proactiveCards.isLoading || proactiveCards.isPending}
           isError={proactiveCards.isError}
           onRetry={() => void proactiveCards.refetch()}

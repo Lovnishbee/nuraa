@@ -41,7 +41,7 @@ export async function createCoachConversation(client: RuntimeSupabaseClient, val
 export async function getCoachConversationForUser(client: RuntimeSupabaseClient, conversationId: string, userId: string): Promise<CoachConversationRow | null> {
   const result = await client.from('coach_conversations').select('*').eq('id', conversationId).eq('user_id', userId).maybeSingle<CoachConversationRow>()
   if (result.error || !result.data) return null
-  if (result.data.status !== 'active' || result.data.deleted_at || result.data.archived_at) return null
+  if (!['active', 'paused'].includes(result.data.status) || result.data.deleted_at || result.data.archived_at) return null
   return result.data
 }
 

@@ -320,6 +320,22 @@ describe('AI gateway runtime hardening', () => {
       archived_at: null,
       deleted_at: null,
     })
+    data.coach_messages.push({
+      id: '00000000-0000-4000-8000-000000000904',
+      conversation_id: '00000000-0000-4000-8000-000000000901',
+      user_id: userId,
+      sequence_number: 1,
+      role: 'nuraa',
+      task_type: 'ask_about_today',
+      message_type: 'coach_opening',
+      content: 'Keep today simple.',
+      structured_payload: null,
+      source_references: [],
+      validation_status: 'valid',
+      client_request_key: null,
+      ai_execution_id: null,
+      created_at: '2026-06-29 13:55:00.000+00',
+    })
     const provider = providerWithPayload(payloadForTask('coach_follow_up'))
 
     const result = await handleAIGatewayRequest({
@@ -344,6 +360,47 @@ describe('AI gateway runtime hardening', () => {
     expect(data.coach_messages.at(-2)?.role).toBe('user')
     expect(data.coach_messages.at(-2)?.content).toBe('What should I prioritise today?')
     expect(data.coach_messages.at(-1)?.role).toBe('nuraa')
+    expect(data.coach_messages.at(-1)?.task_type).toBe('coach_follow_up')
+  })
+
+  it('accepts a follow-up on a paused non-archived Coach conversation', async () => {
+    const data = baseEnabledData()
+    data.coach_conversations.push({
+      id: '00000000-0000-4000-8000-000000000903',
+      user_id: userId,
+      entry_point: 'coach_home',
+      initial_task_type: 'ask_about_today',
+      status: 'paused',
+      deterministic_title: 'Today’s guidance',
+      latest_context_envelope_id: null,
+      last_context_at: null,
+      last_active_at: '2026-06-29T13:55:00.000Z',
+      archived_at: null,
+      deleted_at: null,
+    })
+    const provider = providerWithPayload(payloadForTask('coach_follow_up'))
+
+    const result = await handleAIGatewayRequest({
+      client: fakeClient(data),
+      env: envForTask('coach_follow_up'),
+      userId,
+      now: new Date('2026-06-29T14:00:00.000Z'),
+      body: {
+        taskType: 'coach_follow_up',
+        entryPoint: 'coach_follow_up',
+        conversationId: '00000000-0000-4000-8000-000000000903',
+        userInput: { question: 'What should I prioritise today?' },
+        idempotencyKey: 'follow-up-paused-test',
+      },
+      provider,
+    })
+
+    expect(result.httpStatus).toBe(200)
+    expect(result.response.status).toBe('completed')
+    expect(result.response.fallbackUsed).toBe(false)
+    expect(result.response.conversationId).toBe('00000000-0000-4000-8000-000000000903')
+    expect(provider.generateStructured).toHaveBeenCalledTimes(1)
+    expect(data.coach_messages.at(-2)?.role).toBe('user')
     expect(data.coach_messages.at(-1)?.task_type).toBe('coach_follow_up')
   })
 

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { getCoachEligibility, getCoachMessages, listCoachConversations, sendCoachFollowUp, startScoreExplanation } from '@/services/coachService'
+import { getCoachEligibility, getCoachMessages, listCoachConversations, sendCoachFollowUp, startCoachHome, startScoreExplanation, type CoachEligibility } from '@/services/coachService'
 import { getDashboardSummary } from '@/services/intelligence'
 import { useAuthStore } from '@/stores/auth-store'
 import { CoachPage } from './CoachPage'
@@ -39,6 +39,24 @@ function renderCoachPage(initialEntry = '/app/coach') {
   )
 }
 
+function coachEligibility(overrides: Partial<CoachEligibility> = {}): CoachEligibility {
+  return {
+    internalEnabled: true,
+    internalConsentGranted: true,
+    coachAvailable: true,
+    dashboardCoachAvailable: true,
+    cardToCoachAvailable: true,
+    scoreExplanationAvailable: true,
+    coachEnabled: true,
+    dashboardCoachEnabled: true,
+    cardToCoachEnabled: true,
+    scoreExplanationEnabled: true,
+    responseDetail: 'balanced',
+    unavailableReason: null,
+    ...overrides,
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -46,18 +64,30 @@ afterEach(() => {
 })
 
 describe('CoachPage access and consent', () => {
-  it('shows consent for authenticated users who have not enabled Coach yet', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: false, internalConsentGranted: false, coachEnabled: false, responseDetail: 'balanced' })
+  it('shows unavailable when Coach server access is disabled', async () => {
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility({
+      internalEnabled: false,
+      internalConsentGranted: false,
+      coachAvailable: false,
+      dashboardCoachAvailable: false,
+      cardToCoachAvailable: false,
+      scoreExplanationAvailable: false,
+      coachEnabled: false,
+      dashboardCoachEnabled: false,
+      cardToCoachEnabled: false,
+      scoreExplanationEnabled: false,
+      unavailableReason: 'coach_disabled',
+    }))
     vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
     vi.mocked(listCoachConversations).mockResolvedValue([])
 
     renderCoachPage()
 
-    expect(await screen.findByRole('heading', { name: /enable nuraa coach/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /coach is unavailable/i })).toBeInTheDocument()
   })
 
   it('shows first-use consent before Coach is enabled', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: false, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility({ internalConsentGranted: false, coachEnabled: false, dashboardCoachEnabled: false, scoreExplanationEnabled: false }))
     vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
     vi.mocked(listCoachConversations).mockResolvedValue([])
 
@@ -68,7 +98,7 @@ describe('CoachPage access and consent', () => {
   })
 
   it('opens the latest active conversation instead of leaving the composer disabled', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
     vi.mocked(listCoachConversations).mockResolvedValue([
       {
@@ -108,7 +138,7 @@ describe('CoachPage access and consent', () => {
   })
 
   it('does not render the optimistic score explanation again after the persisted message loads', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
     vi.mocked(listCoachConversations).mockResolvedValue([])
     vi.mocked(startScoreExplanation).mockResolvedValue({
@@ -157,7 +187,7 @@ describe('CoachPage access and consent', () => {
   })
 
   it('keeps the submitted follow-up visible with the Nuraa reply', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
     vi.mocked(listCoachConversations).mockResolvedValue([
       {
@@ -229,7 +259,7 @@ describe('CoachPage access and consent', () => {
   })
 
   it('sends typed follow-ups against the active conversation', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
     vi.mocked(listCoachConversations).mockResolvedValue([
       {
@@ -297,5 +327,106 @@ describe('CoachPage access and consent', () => {
       expect.stringMatching(/^follow_/),
     ))
     expect(await screen.findByText('Protect your next block')).toBeInTheDocument()
+  })
+
+  it('keeps the composer enabled for a paused visible conversation', async () => {
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
+    vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
+    vi.mocked(listCoachConversations).mockResolvedValue([
+      {
+        id: 'conversation-1',
+        user_id: 'user-1',
+        entry_point: 'coach_home',
+        status: 'paused',
+        deterministic_title: 'Today’s guidance',
+        last_active_at: '2026-07-24T00:00:00.000Z',
+        archived_at: null,
+        deleted_at: null,
+        created_at: '2026-07-24T00:00:00.000Z',
+        updated_at: '2026-07-24T00:00:00.000Z',
+      } as never,
+    ])
+    vi.mocked(getCoachMessages).mockResolvedValue([
+      {
+        id: 'message-1',
+        conversationId: 'conversation-1',
+        role: 'nuraa',
+        messageType: 'coach_opening',
+        content: 'Keep today simple.',
+        payload: {
+          headline: 'Keep today simple.',
+          summary: 'Use one practical reset window.',
+          suggestedPrompts: [],
+          sourceReferences: [],
+        },
+        createdAt: '2026-07-24T00:00:00.000Z',
+      },
+    ])
+
+    renderCoachPage()
+
+    expect(await screen.findByText('Keep today simple.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText(/ask nuraa coach/i)).not.toBeDisabled())
+  })
+
+  it('starts a fresh Coach conversation only once', async () => {
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
+    vi.mocked(getDashboardSummary).mockResolvedValue({ score: null, signal: null, brief: null, factors: null, scoreHistory: [], insights: [] })
+    vi.mocked(listCoachConversations).mockResolvedValue([
+      {
+        id: 'conversation-1',
+        user_id: 'user-1',
+        entry_point: 'coach_home',
+        status: 'active',
+        deterministic_title: 'Today’s guidance',
+        last_active_at: '2026-07-24T00:00:00.000Z',
+        archived_at: null,
+        deleted_at: null,
+        created_at: '2026-07-24T00:00:00.000Z',
+        updated_at: '2026-07-24T00:00:00.000Z',
+      } as never,
+    ])
+    vi.mocked(getCoachMessages).mockResolvedValue([
+      {
+        id: 'message-1',
+        conversationId: 'conversation-1',
+        role: 'nuraa',
+        messageType: 'coach_opening',
+        content: 'Keep today simple.',
+        payload: {
+          headline: 'Keep today simple.',
+          summary: 'Use one practical reset window.',
+          suggestedPrompts: [],
+          sourceReferences: [],
+        },
+        createdAt: '2026-07-24T00:00:00.000Z',
+      },
+    ])
+    vi.mocked(startCoachHome).mockResolvedValue({
+      requestId: 'request-fresh',
+      taskType: 'ask_about_today',
+      status: 'completed',
+      fallbackUsed: false,
+      conversationId: 'conversation-2',
+      messageId: 'message-2',
+      payload: {
+        headline: 'Fresh Coach start',
+        summary: 'Use the latest Nuraa context.',
+        primaryFocus: { title: 'Take one step', detail: 'Start with one clear action.' },
+        factualBasis: [{ label: 'Current Nuraa context', sourceReference: 'deterministic:nuraa' }],
+        suggestedPrompts: ['What is one simple action I can take?'],
+        confidenceNote: 'Based on deterministic Nuraa context.',
+        sourceReferences: ['deterministic:nuraa'],
+      },
+      safeMeta: { responseSchemaVersion: 'phase4b.v1', schemaValidationPassed: true },
+    } as never)
+
+    renderCoachPage()
+
+    expect(await screen.findByText('Keep today simple.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /start fresh/i }))
+
+    expect(await screen.findByText('Fresh Coach start')).toBeInTheDocument()
+    await waitFor(() => expect(startCoachHome).toHaveBeenCalledTimes(1))
   })
 })

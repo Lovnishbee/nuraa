@@ -3,7 +3,7 @@ import { cleanup, fireEvent } from '@testing-library/react'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { getCoachEligibility } from '@/services/coachService'
+import { getCoachEligibility, type CoachEligibility } from '@/services/coachService'
 import { getProfileBundle } from '@/services/profile'
 import { generateWeeklyReflection, getCurrentWeeklyReflection } from '@/services/weeklyReflectionService'
 import { useAuthStore } from '@/stores/auth-store'
@@ -40,6 +40,24 @@ function renderPage() {
   )
 }
 
+function coachEligibility(overrides: Partial<CoachEligibility> = {}): CoachEligibility {
+  return {
+    internalEnabled: true,
+    internalConsentGranted: true,
+    coachAvailable: true,
+    dashboardCoachAvailable: true,
+    cardToCoachAvailable: true,
+    scoreExplanationAvailable: true,
+    coachEnabled: true,
+    dashboardCoachEnabled: true,
+    cardToCoachEnabled: true,
+    scoreExplanationEnabled: true,
+    responseDetail: 'balanced',
+    unavailableReason: null,
+    ...overrides,
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -48,7 +66,19 @@ afterEach(() => {
 
 describe('WeeklyReflectionPage', () => {
   it('redirects authenticated users who have not enabled Coach to dashboard', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: false, internalConsentGranted: false, coachEnabled: false, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility({
+      internalEnabled: false,
+      internalConsentGranted: false,
+      coachAvailable: false,
+      dashboardCoachAvailable: false,
+      cardToCoachAvailable: false,
+      scoreExplanationAvailable: false,
+      coachEnabled: false,
+      dashboardCoachEnabled: false,
+      cardToCoachEnabled: false,
+      scoreExplanationEnabled: false,
+      unavailableReason: 'coach_disabled',
+    }))
     vi.mocked(getProfileBundle).mockResolvedValue({ profile: { full_name: 'Lovnish Bhatia', avatar_url: null } } as never)
 
     renderPage()
@@ -57,7 +87,7 @@ describe('WeeklyReflectionPage', () => {
   })
 
   it('renders a current weekly reflection for users with Coach enabled', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(getProfileBundle).mockResolvedValue({ profile: { full_name: 'Lovnish Bhatia', avatar_url: null } } as never)
     vi.mocked(getCurrentWeeklyReflection).mockResolvedValue({
       requestId: 'request-1',
@@ -99,7 +129,7 @@ describe('WeeklyReflectionPage', () => {
   })
 
   it('shows a safe error when generation fails', async () => {
-    vi.mocked(getCoachEligibility).mockResolvedValue({ internalEnabled: true, internalConsentGranted: true, coachEnabled: true, responseDetail: 'balanced' })
+    vi.mocked(getCoachEligibility).mockResolvedValue(coachEligibility())
     vi.mocked(getProfileBundle).mockResolvedValue({ profile: { full_name: 'Lovnish Bhatia', avatar_url: null } } as never)
     vi.mocked(getCurrentWeeklyReflection).mockResolvedValue({ requestId: 'request-1', status: 'completed', reflection: null })
     vi.mocked(generateWeeklyReflection).mockRejectedValue(new Error('WEEKLY_REFLECTION_FAILED'))

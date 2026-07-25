@@ -7,6 +7,7 @@ type RuntimeEnv = Record<string, string | undefined>
 const DetailLevelSchema = z.enum(['concise', 'balanced', 'detailed'])
 
 const ControlInputSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('get_eligibility') }).strict(),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }).strict(),
   z.object({ action: z.literal('reopen'), conversationId: z.string().uuid() }).strict(),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }).strict(),
@@ -49,7 +50,7 @@ Deno.serve(async (request: Request) => {
   const serviceClient = createClient(supabaseUrl, keys.serviceKey, createServiceClientOptions(keys.serviceKey))
 
   try {
-    const result = await handleControlAction(serviceClient, userId, parsed.data)
+    const result = await handleControlAction(serviceClient, userId, parsed.data, env)
     return json(result, 200)
   } catch (error) {
     const code = error instanceof Error ? error.message : 'COACH_CONTROL_FAILED'
@@ -58,7 +59,39 @@ Deno.serve(async (request: Request) => {
   }
 })
 
-async function handleControlAction(client: ReturnType<typeof createClient>, userId: string, input: z.infer<typeof ControlInputSchema>) {
+async function handleControlAction(client: ReturnType<typeof createClient>, userId: string, input: z.infer<typeof ControlInputSchema>, env: RuntimeEnv) {
+  if (input.action === 'get_eligibility') {
+    const preferences = await getUserAIPreferences(client, userId)
+    const aiEnabled = await isFeatureEnabled(client, env, 'AI_ENABLED')
+    const askTodayEnabled = await isFeatureEnabled(client, env, 'ENABLE_AI_ASK_ABOUT_TODAY')
+    const scoreEnabled = await isFeatureEnabled(client, env, 'ENABLE_AI_SCORE_EXPLANATION')
+    const coachEnabled = await isFeatureEnabled(client, env, 'ENABLE_AI_COACH')
+    const dashboardEntryEnabled = await isFeatureEnabled(client, env, 'ENABLE_AI_COACH_DASHBOARD_ENTRY')
+    const cardToCoachEnabled = await isFeatureEnabled(client, env, 'ENABLE_CARD_TO_COACH')
+    const coachAvailable = aiEnabled && askTodayEnabled && coachEnabled
+    const dashboardCoachAvailable = coachAvailable && dashboardEntryEnabled
+    const cardToCoachAvailable = coachAvailable && cardToCoachEnabled
+    const consentGranted = Boolean(preferences?.ai_coaching_enabled)
+
+    return {
+      ok: true,
+      eligibility: {
+        internalEnabled: coachAvailable,
+        internalConsentGranted: consentGranted,
+        coachAvailable,
+        dashboardCoachAvailable,
+        cardToCoachAvailable,
+        scoreExplanationAvailable: coachAvailable && scoreEnabled && dashboardEntryEnabled,
+        coachEnabled: coachAvailable && consentGranted,
+        dashboardCoachEnabled: dashboardCoachAvailable && consentGranted,
+        cardToCoachEnabled: cardToCoachAvailable && consentGranted,
+        scoreExplanationEnabled: coachAvailable && scoreEnabled && dashboardEntryEnabled && consentGranted,
+        responseDetail: preferences?.response_detail ?? 'balanced',
+        unavailableReason: coachAvailable ? null : firstUnavailableReason({ aiEnabled, askTodayEnabled, coachEnabled }),
+      },
+    }
+  }
+
   if (input.action === 'set_consent') {
     const now = new Date().toISOString()
     const result = await client.from('user_ai_preferences').upsert({
@@ -129,6 +162,38 @@ async function handleControlAction(client: ReturnType<typeof createClient>, user
   const result = await client.from('coach_conversations').update({ status: 'deleted', deleted_at: now, last_active_at: now }).eq('id', input.conversationId).eq('user_id', userId)
   if (result.error) throw new Error(result.error.message)
   return { ok: true }
+}
+
+async function getUserAIPreferences(client: ReturnType<typeof createClient>, userId: string) {
+  const result = await client.from('user_ai_preferences')
+    .select('ai_coaching_enabled, response_detail')
+    .eq('user_id', userId)
+    .maybeSingle<{ ai_coaching_enabled: boolean; response_detail: 'concise' | 'balanced' | 'detailed' }>()
+  if (result.error || !result.data) return null
+  return result.data
+}
+
+async function isFeatureEnabled(client: ReturnType<typeof createClient>, env: RuntimeEnv, featureName: string): Promise<boolean> {
+  if (!readBooleanEnv(env, featureName, false)) return false
+  const result = await client.from('ai_feature_flags')
+    .select('enabled')
+    .eq('feature_name', featureName)
+    .maybeSingle<{ enabled: boolean }>()
+  if (result.error || !result.data) return false
+  return Boolean(result.data.enabled)
+}
+
+function readBooleanEnv(env: RuntimeEnv, key: string, fallback: boolean) {
+  const value = env[key]
+  if (value === undefined) return fallback
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase())
+}
+
+function firstUnavailableReason(flags: { aiEnabled: boolean; askTodayEnabled: boolean; coachEnabled: boolean }) {
+  if (!flags.aiEnabled) return 'ai_disabled'
+  if (!flags.askTodayEnabled) return 'ask_today_disabled'
+  if (!flags.coachEnabled) return 'coach_disabled'
+  return 'coach_unavailable'
 }
 
 function json(body: unknown, status: number) {

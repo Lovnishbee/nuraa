@@ -53,7 +53,7 @@ export function CoachPage() {
 
   const detailLevel = eligibility.data?.responseDetail ?? 'balanced'
   const activeConversation = conversations.data?.find((conversation) => conversation.id === conversationId)
-  const conversationCanReceiveFollowUp = !activeConversation || activeConversation.status === 'active'
+  const conversationCanReceiveFollowUp = !activeConversation || ['active', 'paused'].includes(activeConversation.status)
   const visibleMessages = useMemo(() => {
     const byId = new Map<string, CoachMessageView>()
     for (const message of [...(messages.data ?? []), ...optimisticMessages]) {
@@ -66,7 +66,7 @@ export function CoachPage() {
 
   const startMutation = useMutation({
     mutationFn: async (action: string | null) => {
-      if (action === 'explain_score') return startScoreExplanation(detailLevel)
+      if (action === 'explain_score' && eligibility.data?.scoreExplanationEnabled) return startScoreExplanation(detailLevel)
       if (action === 'ask_today') return startAskAboutToday(detailLevel)
       if (action === 'coach_from_card' && requestedCardId) return startCoachFromCard(requestedCardId, detailLevel)
       return startCoachHome(detailLevel)
@@ -113,19 +113,20 @@ export function CoachPage() {
     if (!eligibility.data?.coachEnabled) return
     if (conversationId || startMutation.isPending) return
     if (!requestedAction && !requestedCardId && conversations.isLoading) return
-    const latestActiveConversation = conversations.data?.find((conversation) => conversation.status === 'active')
+    const actionKey = `${requestedAction || 'coach_home'}:${requestedCardId ?? ''}`
+    if (startedActionRef.current === actionKey) return
+    const latestActiveConversation = conversations.data?.find((conversation) => ['active', 'paused'].includes(conversation.status))
     if (!requestedAction && !requestedCardId && latestActiveConversation) {
       setConversationId(latestActiveConversation.id)
       return
     }
-    const actionKey = `${requestedAction || 'coach_home'}:${requestedCardId ?? ''}`
-    if (startedActionRef.current === actionKey) return
     startedActionRef.current = actionKey
     startMutation.mutate(requestedAction)
   }, [conversationId, conversations.data, conversations.isLoading, eligibility.data?.coachEnabled, requestedAction, requestedCardId, startMutation])
 
   if (!userId) return <Navigate to="/login" replace />
   if (eligibility.isLoading) return <div className="p-6 sm:p-10"><LoadingSkeleton className="h-96" /></div>
+  if (!eligibility.data?.coachAvailable) return <CoachUnavailable reason={eligibility.data?.unavailableReason ?? null} />
   if (!eligibility.data?.coachEnabled) return <CoachConsent userId={userId} detailLevel={detailLevel} />
 
   return (
@@ -140,7 +141,7 @@ export function CoachPage() {
           <Button variant="outline" size="sm" onClick={() => {
             setConversationId(null)
             setOptimisticMessages([])
-            startedActionRef.current = null
+            startedActionRef.current = 'coach_home:'
             navigate('/app/coach', { replace: true })
             startMutation.mutate(null)
           }}>Start fresh</Button>
@@ -148,7 +149,7 @@ export function CoachPage() {
 
         <div className="mt-5 space-y-4" aria-live="polite">
           {startMutation.isPending && !visibleMessages.length && <CoachLoadingCard />}
-          {!startMutation.isPending && !visibleMessages.length && <CoachOpeningCard onStart={(prompt) => startMutation.mutate(prompt)} />}
+          {!startMutation.isPending && !visibleMessages.length && <CoachOpeningCard canExplainScore={Boolean(eligibility.data?.scoreExplanationEnabled)} onStart={(prompt) => startMutation.mutate(prompt)} />}
           {visibleMessages.map((message) => (
             <CoachMessageCard
               key={message.id}
@@ -218,6 +219,24 @@ function normalizeMessageText(value: unknown) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().toLowerCase() : ''
 }
 
+function CoachUnavailable({ reason }: { reason: string | null }) {
+  const detail = reason === 'coach_control_unavailable'
+    ? 'The Coach control service is unavailable. Deterministic dashboard insights are still available.'
+    : 'Coach is not enabled for this environment yet. Deterministic dashboard insights are still available.'
+  return (
+    <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-3xl place-items-center p-5">
+      <Card className="p-7 sm:p-9">
+        <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Nuraa Coach</p>
+        <h1 className="display mt-3 text-4xl text-forest">Coach is unavailable</h1>
+        <p className="mt-4 text-base leading-7 text-ink/68">{detail}</p>
+        <div className="mt-7">
+          <Button asChild><a href="/app/dashboard">Back to dashboard</a></Button>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 function CoachConsent({ userId, detailLevel }: { userId: string; detailLevel: AIDetailLevel }) {
   const queryClient = useQueryClient()
   const enable = useMutation({
@@ -243,7 +262,7 @@ function CoachConsent({ userId, detailLevel }: { userId: string; detailLevel: AI
   )
 }
 
-function CoachOpeningCard({ onStart }: { onStart: (action: string | null) => void }) {
+function CoachOpeningCard({ canExplainScore, onStart }: { canExplainScore: boolean; onStart: (action: string | null) => void }) {
   return (
     <Card className="bg-sage/55 p-6">
       <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Contextual start</p>
@@ -251,7 +270,7 @@ function CoachOpeningCard({ onStart }: { onStart: (action: string | null) => voi
       <p className="mt-2 text-sm leading-6 text-ink/64">Start with today’s focus, your score, or a practical plan. This is not a generic blank chatbot.</p>
       <div className="mt-5 flex flex-wrap gap-2">
         <Button onClick={() => onStart('ask_today')} size="sm">Ask about today</Button>
-        <Button onClick={() => onStart('explain_score')} variant="secondary" size="sm">Explain my score</Button>
+        {canExplainScore ? <Button onClick={() => onStart('explain_score')} variant="secondary" size="sm">Explain my score</Button> : null}
       </div>
     </Card>
   )

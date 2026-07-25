@@ -68,7 +68,7 @@ export async function buildContextEnvelope(options: {
       role: message.role,
       messageType: message.message_type,
       content: visibleMessageContent(message).slice(0, 500),
-      createdAt: message.created_at,
+      createdAt: normalizeDateTime(message.created_at),
     })),
     explanationPaths: buildExplanationPaths(snapshot),
     weeklyReflection: weeklyReflection ? {
@@ -183,6 +183,11 @@ function visibleMessageContent(message: { content: string | null; structured_pay
     return [record.headline, record.summary].filter((value): value is string => typeof value === 'string').join(' ')
   }
   return ''
+}
+
+function normalizeDateTime(value: string) {
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? new Date(0).toISOString() : parsed.toISOString()
 }
 
 async function getWeeklyReflectionForContext(client: RuntimeSupabaseClient, userId: string, weeklyReflectionId: string) {

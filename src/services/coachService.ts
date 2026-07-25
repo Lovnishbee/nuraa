@@ -7,8 +7,16 @@ import type { CoachConversation, CoachFeedback, CoachMessage, UserAIPreferences 
 export type CoachEligibility = {
   internalEnabled: boolean
   internalConsentGranted: boolean
+  coachAvailable: boolean
+  dashboardCoachAvailable: boolean
+  cardToCoachAvailable: boolean
+  scoreExplanationAvailable: boolean
   coachEnabled: boolean
+  dashboardCoachEnabled: boolean
+  cardToCoachEnabled: boolean
+  scoreExplanationEnabled: boolean
   responseDetail: AIDetailLevel
+  unavailableReason: string | null
 }
 
 export type CoachMessageView = {
@@ -29,15 +37,13 @@ export async function getCoachEligibility(): Promise<CoachEligibility> {
   const supabase = getSupabaseClient()
   const user = await supabase.auth.getUser()
   const userId = user.data.user?.id
-  if (!userId) return { internalEnabled: false, internalConsentGranted: false, coachEnabled: false, responseDetail: 'balanced' }
-  const preferences = await getCoachPreferences(userId)
-  return {
-    // Product Coach access is controlled by authentication, feature flags, and
-    // user AI consent. The ai_internal_testers table remains only for /dev tools.
-    internalEnabled: true,
-    internalConsentGranted: true,
-    coachEnabled: Boolean(preferences?.ai_coaching_enabled),
-    responseDetail: preferences?.response_detail ?? 'balanced',
+  if (!userId) return unavailableEligibility('unauthenticated')
+  try {
+    const result = await invokeCoachControl<CoachControlResponse<{ eligibility: CoachEligibility }>>({ action: 'get_eligibility' })
+    return result.eligibility
+  } catch {
+    const preferences = await getCoachPreferences(userId)
+    return legacyEligibilityFromPreferences(preferences)
   }
 }
 
@@ -52,15 +58,21 @@ export async function getCoachPreferences(userId: string): Promise<UserAIPrefere
 }
 
 export async function setCoachConsent(userId: string, enabled: boolean, responseDetail: AIDetailLevel = 'balanced') {
-  void userId
-  const result = await invokeCoachControl<CoachControlResponse<{ preferences: UserAIPreferences }>>({ action: 'set_consent', enabled, responseDetail })
-  return result.preferences
+  try {
+    const result = await invokeCoachControl<CoachControlResponse<{ preferences: UserAIPreferences }>>({ action: 'set_consent', enabled, responseDetail })
+    return result.preferences
+  } catch {
+    return setCoachConsentWithUserPolicy(userId, enabled, responseDetail)
+  }
 }
 
 export async function updateCoachResponseDetail(userId: string, responseDetail: AIDetailLevel) {
-  void userId
-  const result = await invokeCoachControl<CoachControlResponse<{ preferences: UserAIPreferences }>>({ action: 'set_response_detail', responseDetail })
-  return result.preferences
+  try {
+    const result = await invokeCoachControl<CoachControlResponse<{ preferences: UserAIPreferences }>>({ action: 'set_response_detail', responseDetail })
+    return result.preferences
+  } catch {
+    return updateCoachResponseDetailWithUserPolicy(userId, responseDetail)
+  }
 }
 
 export async function listCoachConversations(userId: string): Promise<CoachConversation[]> {
@@ -222,6 +234,77 @@ function buildFollowUpFallback(conversationId: string): AIGatewayResponse {
       schemaValidationPassed: true,
     },
   }
+}
+
+function unavailableEligibility(unavailableReason: string): CoachEligibility {
+  return {
+    internalEnabled: false,
+    internalConsentGranted: false,
+    coachAvailable: false,
+    dashboardCoachAvailable: false,
+    cardToCoachAvailable: false,
+    scoreExplanationAvailable: false,
+    coachEnabled: false,
+    dashboardCoachEnabled: false,
+    cardToCoachEnabled: false,
+    scoreExplanationEnabled: false,
+    responseDetail: 'balanced',
+    unavailableReason,
+  }
+}
+
+function legacyEligibilityFromPreferences(preferences: UserAIPreferences | null): CoachEligibility {
+  const consentGranted = Boolean(preferences?.ai_coaching_enabled)
+  return {
+    internalEnabled: true,
+    internalConsentGranted: consentGranted,
+    coachAvailable: true,
+    dashboardCoachAvailable: true,
+    cardToCoachAvailable: true,
+    scoreExplanationAvailable: true,
+    coachEnabled: consentGranted,
+    dashboardCoachEnabled: consentGranted,
+    cardToCoachEnabled: consentGranted,
+    scoreExplanationEnabled: consentGranted,
+    responseDetail: preferences?.response_detail ?? 'balanced',
+    unavailableReason: null,
+  }
+}
+
+async function setCoachConsentWithUserPolicy(userId: string, enabled: boolean, responseDetail: AIDetailLevel): Promise<UserAIPreferences> {
+  const now = new Date().toISOString()
+  const result = await getSupabaseClient()
+    .from('user_ai_preferences')
+    .upsert({
+      user_id: userId,
+      ai_coaching_enabled: enabled,
+      ai_coaching_policy_version: enabled ? 'phase4b.v1' : null,
+      ai_coaching_consented_at: enabled ? now : null,
+      ai_coaching_disabled_at: enabled ? null : now,
+      response_detail: responseDetail,
+    }, { onConflict: 'user_id' })
+    .select('*')
+    .single<UserAIPreferences>()
+  if (result.error) throw result.error
+  return result.data
+}
+
+async function updateCoachResponseDetailWithUserPolicy(userId: string, responseDetail: AIDetailLevel): Promise<UserAIPreferences> {
+  const existing = await getCoachPreferences(userId)
+  const result = await getSupabaseClient()
+    .from('user_ai_preferences')
+    .upsert({
+      user_id: userId,
+      ai_coaching_enabled: Boolean(existing?.ai_coaching_enabled),
+      ai_coaching_policy_version: existing?.ai_coaching_policy_version ?? null,
+      ai_coaching_consented_at: existing?.ai_coaching_consented_at ?? null,
+      ai_coaching_disabled_at: existing?.ai_coaching_disabled_at ?? null,
+      response_detail: responseDetail,
+    }, { onConflict: 'user_id' })
+    .select('*')
+    .single<UserAIPreferences>()
+  if (result.error) throw result.error
+  return result.data
 }
 
 function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {

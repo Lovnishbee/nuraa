@@ -90,7 +90,7 @@ export function DailyCheckInPage() {
           <EmptyState title="Private by design" description="Your check-in saves only to your Nuraa account." image={reflectionIllustration} className="mt-8" />
         </aside>
 
-        <Card className="p-5 sm:p-7">
+        <Card className="min-w-0 p-5 sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[.14em] text-nuraa">Daily check-in</p>
@@ -104,7 +104,7 @@ export function DailyCheckInPage() {
             <Controller control={control} name="mood" render={({ field }) => (
               <fieldset>
                 <legend className="mb-3 flex items-center gap-2 text-sm font-bold text-forest"><Smile size={18} className="text-nuraa" /> Mood</legend>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                   {moodOptions.map((option) => (
                     <button key={option.value} type="button" aria-pressed={field.value === option.value} onClick={() => field.onChange(option.value)} className={cn('rounded-2xl border p-3 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nuraa/25', field.value === option.value ? 'border-nuraa bg-sage text-forest' : 'border-forest/10 bg-white text-forest/65 hover:border-nuraa/35')}>
                       <span className="text-2xl">{option.icon}</span>
@@ -116,13 +116,13 @@ export function DailyCheckInPage() {
               </fieldset>
             )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid min-w-0 gap-4 md:grid-cols-2">
               {scaleFields.map(({ name, label, icon: Icon, low, high }) => (
                 <Controller key={name} control={control} name={name} render={({ field }) => (
-                  <fieldset className="rounded-3xl border border-forest/10 bg-canvas p-4">
+                  <fieldset className="min-w-0 rounded-3xl border border-forest/10 bg-canvas p-4">
                     <legend className="flex items-center gap-2 text-sm font-bold text-forest"><Icon size={17} className="text-nuraa" /> {label}</legend>
-                    <div className="mt-4 grid grid-cols-5 gap-2">
-                      {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={`${label} ${value} out of 5`} aria-pressed={field.value === value} onClick={() => field.onChange(value)} className={cn('grid size-10 place-items-center rounded-xl border text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nuraa/25', field.value === value ? 'border-nuraa bg-nuraa text-white' : 'border-forest/10 bg-white text-forest/60 hover:border-nuraa/30')}>{value}</button>)}
+                    <div className="mt-4 grid grid-cols-5 gap-1.5 sm:gap-2">
+                      {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={`${label} ${value} out of 5`} aria-pressed={field.value === value} onClick={() => field.onChange(value)} className={cn('grid size-9 place-items-center rounded-xl border text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nuraa/25 sm:size-10', field.value === value ? 'border-nuraa bg-nuraa text-white' : 'border-forest/10 bg-white text-forest/60 hover:border-nuraa/30')}>{value}</button>)}
                     </div>
                     <div className="mt-2 flex justify-between text-[11px] font-semibold text-ink/45"><span>{low}</span><span>{high}</span></div>
                   </fieldset>
@@ -130,7 +130,7 @@ export function DailyCheckInPage() {
               ))}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[180px_180px_1fr]">
+            <div className="grid gap-4 lg:grid-cols-[180px_180px_1fr]">
               <label className="block">
                 <span className="mb-2 block text-sm font-bold text-forest">Sleep hours</span>
                 <input type="number" step="0.25" className="h-12 w-full rounded-2xl border border-forest/15 bg-white px-4 text-sm text-ink outline-none focus:border-nuraa focus:ring-2 focus:ring-nuraa/15" {...register('sleepHours')} />
